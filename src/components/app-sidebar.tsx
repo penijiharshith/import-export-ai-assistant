@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Inbox, LayoutDashboard, MailCheck, Settings } from "lucide-react";
+import { CheckCircle2, FileText, Inbox, LayoutDashboard, MailCheck, Settings } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -21,6 +22,39 @@ function isActiveRoute(pathname: string, href: string) {
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const [gmailConnected, setGmailConnected] = useState<boolean | null>(null);
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadStatuses() {
+      try {
+        const [gmailResponse, aiResponse] = await Promise.all([
+          fetch("/api/auth/debug", { cache: "no-store" }),
+          fetch("/api/ai/status", { cache: "no-store" }),
+        ]);
+        const gmailData = await gmailResponse.json();
+        const aiData = await aiResponse.json();
+
+        if (isMounted) {
+          setGmailConnected(Boolean(gmailData.providerTokenExists && gmailData.gmailPermissionGranted));
+          setAiEnabled(Boolean(aiData.enabled));
+        }
+      } catch {
+        if (isMounted) {
+          setGmailConnected(false);
+          setAiEnabled(false);
+        }
+      }
+    }
+
+    loadStatuses();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   return (
     <aside className="h-fit rounded-lg border border-zinc-200 bg-white p-2 shadow-sm">
@@ -44,12 +78,24 @@ export function AppSidebar() {
         })}
       </nav>
 
-      <div className="mt-3 hidden rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-500 lg:block">
+      <div className="mt-3 hidden rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs leading-5 text-zinc-600 lg:block">
         <div className="mb-2 flex items-center gap-2 font-semibold text-zinc-700">
           <FileText size={14} aria-hidden="true" />
           MVP scope
         </div>
-        Gmail inbox connection is not enabled yet.
+        {[
+          ["Gmail connected", gmailConnected === null ? "Checking" : gmailConnected ? "Yes" : "No"],
+          ["AI enabled", aiEnabled === null ? "Checking" : aiEnabled ? "Yes" : "No"],
+          ["Draft approval", "Enabled"],
+        ].map(([label, value]) => (
+          <div key={label} className="mt-1 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={13} aria-hidden="true" />
+              {label}
+            </span>
+            <span className="font-semibold text-zinc-800">{value}</span>
+          </div>
+        ))}
       </div>
     </aside>
   );

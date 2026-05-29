@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Bug, Inbox, Loader2, Mail, RefreshCw } from "lucide-react";
+import { Inbox, Loader2, Mail, RefreshCw } from "lucide-react";
+import { ToastNotice, type ToastState } from "@/components/toast-notice";
 import { connectGmail } from "@/lib/auth";
 import type { GmailMessagePreview, GmailPermissionDebug } from "@/lib/gmail";
 
@@ -32,6 +33,7 @@ export function GmailConnection() {
   const [isFetchingMessages, setIsFetchingMessages] = useState(false);
   const [syncSummary, setSyncSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState>(null);
 
   const loadPermissionDebug = useCallback(async () => {
     setIsChecking(true);
@@ -71,7 +73,9 @@ export function GmailConnection() {
     try {
       await connectGmail();
     } catch (connectError) {
-      setError(connectError instanceof Error ? connectError.message : "Unable to start Gmail connection.");
+      const message = connectError instanceof Error ? connectError.message : "Unable to start Gmail connection.";
+      setError(message);
+      setToast({ type: "error", message });
       setIsConnecting(false);
     }
   }
@@ -94,8 +98,11 @@ export function GmailConnection() {
 
       setMessages(data.messages ?? []);
       setSyncSummary(`Synced ${data.synced ?? 0} emails: ${data.inserted ?? 0} inserted, ${data.updated ?? 0} updated.`);
+      setToast({ type: "success", message: `Gmail sync complete: ${data.synced ?? 0} emails processed.` });
     } catch (fetchError) {
-      setError(fetchError instanceof Error ? fetchError.message : "Unable to fetch Gmail emails.");
+      const message = fetchError instanceof Error ? fetchError.message : "Unable to fetch Gmail emails.";
+      setError(message);
+      setToast({ type: "error", message });
     } finally {
       setIsFetchingMessages(false);
     }
@@ -168,23 +175,6 @@ export function GmailConnection() {
         </p>
       ) : null}
 
-      <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-950">
-          <Bug size={16} aria-hidden="true" />
-          Temporary debug panel
-        </div>
-        <dl className="grid gap-3 text-sm sm:grid-cols-[160px_1fr]">
-          <dt className="text-zinc-500">Provider token exists</dt>
-          <dd className="font-medium text-zinc-950">{yesNo(providerTokenExists)}</dd>
-          <dt className="text-zinc-500">Scopes granted</dt>
-          <dd className="break-all font-medium text-zinc-950">
-            {debug?.scopesGranted?.length ? debug.scopesGranted.join(", ") : "None detected"}
-          </dd>
-          <dt className="text-zinc-500">Scope check error</dt>
-          <dd className="break-all font-medium text-zinc-950">{debug?.scopeCheckError ?? "None"}</dd>
-        </dl>
-      </div>
-
       <div className="mt-5">
         <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-950">
           <Inbox size={16} aria-hidden="true" />
@@ -213,6 +203,7 @@ export function GmailConnection() {
           </div>
         )}
       </div>
+      <ToastNotice toast={toast} />
     </div>
   );
 }

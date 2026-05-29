@@ -4,6 +4,7 @@ import {
   getGoogleTokenScopes,
   GMAIL_PROVIDER_TOKEN_COOKIE,
   GMAIL_READONLY_SCOPE,
+  GMAIL_SEND_SCOPE,
   type GmailPermissionDebug,
 } from "@/lib/gmail";
 
@@ -66,12 +67,10 @@ export async function GET(request: NextRequest) {
 
   const debug: GmailPermissionDebug & { scopeCheckError: string | null } = {
     providerTokenExists,
-    gmailPermissionGranted: scopesGranted.includes(GMAIL_READONLY_SCOPE),
+    gmailPermissionGranted: scopesGranted.includes(GMAIL_READONLY_SCOPE) && scopesGranted.includes(GMAIL_SEND_SCOPE),
     scopesGranted,
     scopeCheckError,
   };
-
-  console.log("Gmail permission debug:", debug);
 
   return jsonWithCookies(debug, undefined, cookieResponse);
 }

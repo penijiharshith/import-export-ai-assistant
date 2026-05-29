@@ -7,6 +7,7 @@ const categoryTone: Record<string, string> = {
   supplier_quote: "bg-teal-50 text-teal-800",
   payment: "bg-amber-50 text-amber-900",
   shipment: "bg-violet-50 text-violet-800",
+  shipment_update: "bg-violet-50 text-violet-800",
   complaint: "bg-rose-50 text-rose-800",
   other: "bg-zinc-100 text-zinc-700",
   unclassified: "bg-zinc-100 text-zinc-600",

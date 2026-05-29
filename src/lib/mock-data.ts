@@ -23,11 +23,11 @@ export type TradeEmail = {
 export type AiDraft = {
   id: string;
   emailId: string;
-  type: "Reply" | "Negotiation" | "Follow-up";
+  type: string;
   to: string;
   subject: string;
   body: string;
-  status: "Needs review" | "Approved" | "Sent";
+  status: string;
   createdAt: string;
   checks: string[];
 };

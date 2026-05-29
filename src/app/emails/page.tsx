@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { ClassifyEmailsButton } from "@/components/emails/classify-emails-button";
+import { ExtractTradeDetailsButton } from "@/components/emails/extract-trade-details-button";
 import { EmailList } from "@/components/email-list";
 import { getEmailMessagesForCurrentUser } from "@/lib/email-messages";
 
@@ -20,7 +21,10 @@ export default async function EmailsPage() {
             <Search size={17} aria-hidden="true" />
             Search inbox
           </div>
-          <ClassifyEmailsButton />
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <ClassifyEmailsButton />
+            <ExtractTradeDetailsButton />
+          </div>
         </div>
       </div>
 
@@ -36,7 +40,16 @@ export default async function EmailsPage() {
         </p>
       ) : null}
 
-      <EmailList emails={emails} fullView source={source} />
+      {source === "supabase" && emails.length === 0 ? (
+        <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-950">No synced emails</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">
+            Connect Gmail in settings, then fetch your latest inbox messages.
+          </p>
+        </div>
+      ) : (
+        <EmailList emails={emails} fullView source={source} />
+      )}
     </AppShell>
   );
 }

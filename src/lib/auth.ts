@@ -1,7 +1,7 @@
 "use client";
 
 import type { User } from "@supabase/supabase-js";
-import { GMAIL_READONLY_SCOPE } from "@/lib/gmail";
+import { GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE } from "@/lib/gmail";
 import { createSupabaseBrowserClient } from "@/lib/supabase";
 
 export async function signInWithGoogle() {
@@ -12,7 +12,7 @@ export async function signInWithGoogle() {
     provider: "google",
     options: {
       redirectTo,
-      scopes: ["email", "profile", GMAIL_READONLY_SCOPE].join(" "),
+      scopes: ["email", "profile", GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE].join(" "),
       queryParams: {
         access_type: "offline",
         prompt: "consent",

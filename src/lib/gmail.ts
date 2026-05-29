@@ -1,5 +1,6 @@
 export const GMAIL_PROVIDER_TOKEN_COOKIE = "gmail_provider_token";
 export const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 type GoogleTokenInfoResponse = {
   scope?: string;

@@ -1,10 +1,10 @@
-import OpenAI from "openai";
+import { assertGroqApiKey, getGroqJsonContent, groq, GROQ_MODEL } from "@/lib/ai/groq";
 
 export const EMAIL_CATEGORIES = [
   "buyer_inquiry",
   "supplier_quote",
   "payment",
-  "shipment",
+  "shipment_update",
   "complaint",
   "other",
 ] as const;
@@ -61,21 +61,40 @@ export async function classifyEmail({
   body,
   sender,
 }: ClassifyEmailInput): Promise<EmailClassification> {
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured.");
-  }
+  assertGroqApiKey();
 
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-
-  const response = await openai.responses.create({
-    model: "gpt-4.1-mini",
-    input: [
+  const response = await groq.chat.completions.create({
+    model: GROQ_MODEL,
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+    messages: [
       {
         role: "system",
         content:
-          "Classify import-export related emails. Return only JSON with category, confidence, and reason. Allowed categories: buyer_inquiry, supplier_quote, payment, shipment, complaint, other.",
+          [
+            "Classify import-export trade emails. Return only valid JSON with exactly these keys: category, confidence, reason.",
+            "Allowed categories: buyer_inquiry, supplier_quote, payment, shipment_update, complaint, other.",
+            "confidence must be a number from 0 to 1.",
+            "",
+            "Category rules:",
+            "buyer_inquiry: buyer/importer asks for quotation, RFQ, price, pricing, MOQ, sample, catalog, delivery time, shipment possibility, CIF/FOB/EXW/DDP Incoterms, product availability, export/import product inquiry, or asks supplier to quote.",
+            "supplier_quote: supplier/exporter responds with quotation, offer price, supplier pricing, lead time, MOQ, availability, export offer, proforma-style offer, or terms in response to an inquiry.",
+            "shipment_update: sender reports an existing shipment was dispatched, vessel/container status, BL update, tracking update, ETA update, or cargo movement already in progress.",
+            "payment: invoice, payment, remittance, bank transfer, LC/letter of credit, payment proof, payment due, payment confirmation.",
+            "complaint: quality complaint, damaged goods, shortage, delay complaint, claim, dispute, rejection, or corrective action request.",
+            "other: newsletters, marketing, promotions, ads, unrelated emails, generic introductions without a concrete trade request or offer.",
+            "",
+            "Strict priority rule: If an email asks for pricing, quotation, MOQ, shipment, delivery, Incoterms, or export/import products, classify it as buyer_inquiry, even if it mentions shipment or delivery.",
+            "Use shipment_update only when the email gives an update about an existing shipment, not when it asks whether shipment/delivery is possible.",
+            "",
+            "Examples:",
+            'Subject: "RFQ for 2 containers of basmati rice CIF Jebel Ali" -> {"category":"buyer_inquiry","confidence":0.95,"reason":"Buyer is requesting quotation with Incoterm and product details."}',
+            'Subject: "Please quote MOQ and FOB price for cotton towels" -> {"category":"buyer_inquiry","confidence":0.95,"reason":"Email asks for MOQ and FOB pricing."}',
+            'Subject: "Our offer for 500 cartons, lead time 20 days" -> {"category":"supplier_quote","confidence":0.9,"reason":"Supplier is providing price/lead time offer."}',
+            'Subject: "Container dispatched - BL copy attached" -> {"category":"shipment_update","confidence":0.92,"reason":"Email provides dispatch and BL update for shipment."}',
+            'Subject: "Payment remittance advice for invoice 7842" -> {"category":"payment","confidence":0.94,"reason":"Email concerns payment/remittance."}',
+            'Subject: "May newsletter and product promotions" -> {"category":"other","confidence":0.9,"reason":"Marketing newsletter, not a specific trade request."}',
+          ].join("\n"),
       },
       {
         role: "user",
@@ -86,35 +105,9 @@ export async function classifyEmail({
         }),
       },
     ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: "email_classification",
-        strict: true,
-        schema: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            category: {
-              type: "string",
-              enum: EMAIL_CATEGORIES,
-            },
-            confidence: {
-              type: "number",
-              minimum: 0,
-              maximum: 1,
-            },
-            reason: {
-              type: "string",
-            },
-          },
-          required: ["category", "confidence", "reason"],
-        },
-      },
-    },
   });
 
-  const outputText = response.output_text;
+  const outputText = getGroqJsonContent(response);
 
   return normalizeClassification(JSON.parse(outputText));
 }

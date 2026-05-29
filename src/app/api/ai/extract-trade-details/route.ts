@@ -1,12 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { classifyEmail } from "@/lib/ai/classify-email";
+import { extractTradeDetails } from "@/lib/ai/extract-trade-details";
 
 type EmailRow = {
   id: string;
   sender: string | null;
   subject: string | null;
   body: string | null;
+  category: string | null;
+};
+
+type ExistingExtractionRow = {
+  email_id: string;
 };
 
 function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSource: NextResponse) {
@@ -59,41 +64,63 @@ export async function POST(request: NextRequest) {
 
   const { data: emails, error: emailError } = await supabase
     .from("email_messages")
-    .select("id,sender,subject,body")
+    .select("id,sender,subject,body,category")
     .eq("user_id", user.id)
-    .eq("category", "unclassified")
+    .in("category", ["buyer_inquiry", "supplier_quote"])
     .order("received_at", { ascending: false })
-    .limit(10);
+    .limit(20);
 
   if (emailError) {
     return jsonWithCookies({ error: "email_fetch_failed", message: emailError.message }, { status: 500 }, cookieResponse);
   }
 
   const emailRows = (emails ?? []) as EmailRow[];
+
+  if (emailRows.length === 0) {
+    return jsonWithCookies({ extracted: 0, results: [] }, undefined, cookieResponse);
+  }
+
+  const { data: existingExtractions, error: existingError } = await supabase
+    .from("extracted_trade_details")
+    .select("email_id")
+    .in(
+      "email_id",
+      emailRows.map((email) => email.id)
+    );
+
+  if (existingError) {
+    return jsonWithCookies(
+      { error: "existing_extraction_fetch_failed", message: existingError.message },
+      { status: 500 },
+      cookieResponse
+    );
+  }
+
+  const existingEmailIds = new Set(
+    ((existingExtractions ?? []) as ExistingExtractionRow[]).map((row) => row.email_id)
+  );
+  const emailsToExtract = emailRows.filter((email) => !existingEmailIds.has(email.id)).slice(0, 10);
   const results = [];
 
-  for (const email of emailRows) {
-    const classification = await classifyEmail({
+  for (const email of emailsToExtract) {
+    const details = await extractTradeDetails({
       subject: email.subject,
       body: email.body,
       sender: email.sender,
+      category: email.category,
     });
 
-    const { error: updateError } = await supabase
-      .from("email_messages")
-      .update({
-        category: classification.category,
-        status: "new",
-      })
-      .eq("id", email.id)
-      .eq("user_id", user.id);
+    const { error: insertError } = await supabase.from("extracted_trade_details").insert({
+      email_id: email.id,
+      ...details,
+    });
 
-    if (updateError) {
+    if (insertError) {
       return jsonWithCookies(
         {
-          error: "classification_update_failed",
-          message: updateError.message,
-          classified: results.length,
+          error: "extraction_insert_failed",
+          message: insertError.message,
+          extracted: results.length,
         },
         { status: 500 },
         cookieResponse
@@ -102,13 +129,13 @@ export async function POST(request: NextRequest) {
 
     results.push({
       email_id: email.id,
-      ...classification,
+      ...details,
     });
   }
 
   return jsonWithCookies(
     {
-      classified: results.length,
+      extracted: results.length,
       results,
     },
     undefined,
