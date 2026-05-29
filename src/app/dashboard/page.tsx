@@ -1,7 +1,7 @@
 import { Search } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { EmailList } from "@/components/email-list";
-import { stats, tradeEmails } from "@/lib/mock-data";
+import { getDashboardDataForCurrentUser } from "@/lib/dashboard";
 
 const statTone: Record<string, string> = {
   teal: "border-teal-200 bg-teal-50 text-teal-900",
@@ -10,7 +10,9 @@ const statTone: Record<string, string> = {
   rose: "border-rose-200 bg-rose-50 text-rose-900",
 };
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const { stats, emails, source, error } = await getDashboardDataForCurrentUser();
+
   return (
     <AppShell>
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -24,6 +26,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {error ? (
+        <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+          Could not load Supabase dashboard data, showing demo fallback. {error}
+        </p>
+      ) : null}
+
+      {source === "mock" && !error ? (
+        <p className="mb-4 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm leading-6 text-zinc-600">
+          No Supabase emails found yet. Showing demo dashboard data.
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className={`rounded-lg border p-4 shadow-sm ${statTone[stat.tone]}`}>
@@ -34,7 +48,16 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6">
-        <EmailList emails={tradeEmails} />
+        {emails.length === 0 ? (
+          <div className="rounded-lg border border-zinc-200 bg-white p-8 text-center shadow-sm">
+            <h2 className="text-lg font-semibold text-zinc-950">No dashboard emails</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-500">
+              Connect Gmail and sync messages to populate analytics.
+            </p>
+          </div>
+        ) : (
+          <EmailList emails={emails} source={source} />
+        )}
       </div>
     </AppShell>
   );
