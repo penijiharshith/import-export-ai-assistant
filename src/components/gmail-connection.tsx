@@ -1,0 +1,218 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { Bug, Inbox, Loader2, Mail, RefreshCw } from "lucide-react";
+import { connectGmail } from "@/lib/auth";
+import type { GmailMessagePreview, GmailPermissionDebug } from "@/lib/gmail";
+
+type PermissionDebugResponse = GmailPermissionDebug & {
+  scopeCheckError?: string | null;
+};
+
+function yesNo(value: boolean) {
+  return value ? "Yes" : "No";
+}
+
+function formatReceivedAt(receivedAt: string | null) {
+  if (!receivedAt) {
+    return "Unknown time";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(receivedAt));
+}
+
+export function GmailConnection() {
+  const [debug, setDebug] = useState<PermissionDebugResponse | null>(null);
+  const [messages, setMessages] = useState<GmailMessagePreview[]>([]);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isFetchingMessages, setIsFetchingMessages] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPermissionDebug = useCallback(async () => {
+    setIsChecking(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/auth/debug", {
+        method: "GET",
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message ?? data.error ?? "Unable to verify Gmail permission.");
+      }
+
+      setDebug(data);
+    } catch (debugError) {
+      setError(debugError instanceof Error ? debugError.message : "Unable to verify Gmail permission.");
+    } finally {
+      setIsChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      loadPermissionDebug();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [loadPermissionDebug]);
+
+  async function handleConnectGmail() {
+    setIsConnecting(true);
+    setError(null);
+
+    try {
+      await connectGmail();
+    } catch (connectError) {
+      setError(connectError instanceof Error ? connectError.message : "Unable to start Gmail connection.");
+      setIsConnecting(false);
+    }
+  }
+
+  async function handleFetchEmails() {
+    setIsFetchingMessages(true);
+    setError(null);
+    setSyncSummary(null);
+
+    try {
+      const response = await fetch("/api/gmail/sync", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message ?? data.error ?? "Unable to fetch Gmail emails.");
+      }
+
+      setMessages(data.messages ?? []);
+      setSyncSummary(`Synced ${data.synced ?? 0} emails: ${data.inserted ?? 0} inserted, ${data.updated ?? 0} updated.`);
+    } catch (fetchError) {
+      setError(fetchError instanceof Error ? fetchError.message : "Unable to fetch Gmail emails.");
+    } finally {
+      setIsFetchingMessages(false);
+    }
+  }
+
+  const providerTokenExists = debug?.providerTokenExists ?? false;
+  const gmailPermissionGranted = debug?.gmailPermissionGranted ?? false;
+
+  return (
+    <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-950">
+        <Mail size={18} aria-hidden="true" />
+        Gmail connection
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <p className="text-sm text-zinc-500">Gmail Connected</p>
+          <p className={`mt-2 text-xl font-semibold ${providerTokenExists ? "text-teal-800" : "text-amber-900"}`}>
+            {yesNo(providerTokenExists)}
+          </p>
+        </div>
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+          <p className="text-sm text-zinc-500">Gmail Permission Granted</p>
+          <p className={`mt-2 text-xl font-semibold ${gmailPermissionGranted ? "text-teal-800" : "text-amber-900"}`}>
+            {yesNo(gmailPermissionGranted)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        <button
+          type="button"
+          onClick={handleConnectGmail}
+          disabled={isConnecting}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isConnecting ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
+          {isConnecting ? "Connecting..." : "Connect Gmail"}
+        </button>
+        <button
+          type="button"
+          onClick={loadPermissionDebug}
+          disabled={isChecking}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isChecking ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
+          {isChecking ? "Checking..." : "Refresh permission status"}
+        </button>
+        <button
+          type="button"
+          onClick={handleFetchEmails}
+          disabled={isFetchingMessages}
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isFetchingMessages ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Inbox size={16} aria-hidden="true" />}
+          {isFetchingMessages ? "Fetching..." : "Fetch latest Gmail emails"}
+        </button>
+      </div>
+
+      {error ? (
+        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
+          {error}
+        </p>
+      ) : null}
+
+      {syncSummary ? (
+        <p className="mt-4 rounded-md border border-teal-200 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
+          {syncSummary}
+        </p>
+      ) : null}
+
+      <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-950">
+          <Bug size={16} aria-hidden="true" />
+          Temporary debug panel
+        </div>
+        <dl className="grid gap-3 text-sm sm:grid-cols-[160px_1fr]">
+          <dt className="text-zinc-500">Provider token exists</dt>
+          <dd className="font-medium text-zinc-950">{yesNo(providerTokenExists)}</dd>
+          <dt className="text-zinc-500">Scopes granted</dt>
+          <dd className="break-all font-medium text-zinc-950">
+            {debug?.scopesGranted?.length ? debug.scopesGranted.join(", ") : "None detected"}
+          </dd>
+          <dt className="text-zinc-500">Scope check error</dt>
+          <dd className="break-all font-medium text-zinc-950">{debug?.scopeCheckError ?? "None"}</dd>
+        </dl>
+      </div>
+
+      <div className="mt-5">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-950">
+          <Inbox size={16} aria-hidden="true" />
+          Latest Gmail emails
+        </div>
+
+        {messages.length === 0 ? (
+          <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 text-zinc-500">
+            No Gmail emails loaded yet. Click &quot;Fetch latest Gmail emails&quot; after connecting Gmail.
+          </div>
+        ) : (
+          <div className="grid gap-3">
+            {messages.map((message) => (
+              <article key={message.gmail_message_id} className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                  <div>
+                    <h3 className="font-semibold text-zinc-950">{message.subject}</h3>
+                    <p className="mt-1 text-sm text-zinc-500">{message.sender}</p>
+                  </div>
+                  <p className="text-sm text-zinc-500">{formatReceivedAt(message.received_at)}</p>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-zinc-600">{message.snippet}</p>
+                <p className="mt-3 break-all text-xs text-zinc-400">Gmail ID: {message.gmail_message_id}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
