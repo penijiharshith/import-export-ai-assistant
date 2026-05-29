@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     .select("id,sender,subject,body,category")
     .eq("user_id", user.id)
     .in("category", ["buyer_inquiry", "supplier_quote"])
+    .neq("status", "archived")
     .order("received_at", { ascending: false })
     .limit(20);
 

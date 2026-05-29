@@ -41,6 +41,16 @@ export type EmailDetailLoadResult = {
   error: string | null;
 };
 
+export const TRADE_EMAIL_CATEGORIES = [
+  "buyer_inquiry",
+  "supplier_quote",
+  "shipment_update",
+  "payment",
+  "complaint",
+] as const;
+
+export const HIDDEN_EMAIL_CATEGORIES = ["other", "unclassified"] as const;
+
 function formatReceivedAt(receivedAt: string | null) {
   if (!receivedAt) {
     return "Unknown time";
@@ -146,6 +156,7 @@ export async function getEmailMessagesForCurrentUser(): Promise<EmailLoadResult>
     .from("email_messages")
     .select("id,gmail_message_id,sender,subject,body,category,status,received_at")
     .eq("user_id", user.id)
+    .neq("status", "archived")
     .order("received_at", { ascending: false });
 
   if (error) {

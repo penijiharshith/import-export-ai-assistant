@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
     .select("id,sender,subject,body")
     .eq("user_id", user.id)
     .eq("category", "unclassified")
+    .neq("status", "archived")
     .order("received_at", { ascending: false })
     .limit(10);
 

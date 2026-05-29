@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     const gmailMessageIds = messages.map((message) => message.gmail_message_id);
     const { data: existingRows, error: existingError } = await supabase
       .from("email_messages")
-      .select("id,gmail_message_id")
+      .select("id,gmail_message_id,status")
       .eq("user_id", user.id)
       .in("gmail_message_id", gmailMessageIds);
 
@@ -95,7 +95,13 @@ export async function POST(request: NextRequest) {
     }
 
     const existingByGmailId = new Map(
-      (existingRows ?? []).map((row) => [row.gmail_message_id as string, row.id as string])
+      (existingRows ?? []).map((row) => [
+        row.gmail_message_id as string,
+        {
+          id: row.id as string,
+          status: row.status as string | null,
+        },
+      ])
     );
 
     const updates = messages
@@ -108,10 +114,10 @@ export async function POST(request: NextRequest) {
             subject: message.subject,
             body: message.snippet,
             category: "unclassified",
-            status: "new",
+            status: existingByGmailId.get(message.gmail_message_id)?.status === "archived" ? "archived" : "new",
             received_at: message.received_at,
           })
-          .eq("id", existingByGmailId.get(message.gmail_message_id)!)
+          .eq("id", existingByGmailId.get(message.gmail_message_id)!.id)
           .eq("user_id", user.id)
       );
 

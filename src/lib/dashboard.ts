@@ -109,19 +109,29 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
     return mockDashboard(userError?.message ?? "User is not authenticated.");
   }
 
+  const { count: totalEmailCount, error: totalEmailError } = await supabase
+    .from("email_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  if (totalEmailError) {
+    return mockDashboard(totalEmailError.message);
+  }
+
+  if (!totalEmailCount) {
+    return mockDashboard(null);
+  }
+
   const { data: latestEmailRows, error: latestEmailError } = await supabase
     .from("email_messages")
     .select("id,gmail_message_id,sender,subject,body,category,status,received_at")
     .eq("user_id", user.id)
+    .neq("status", "archived")
     .order("received_at", { ascending: false })
     .limit(6);
 
   if (latestEmailError) {
     return mockDashboard(latestEmailError.message);
-  }
-
-  if (!latestEmailRows?.length) {
-    return mockDashboard(null);
   }
 
   const [
@@ -133,16 +143,19 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
       .from("email_messages")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .eq("status", "new"),
+      .eq("status", "new")
+      .neq("status", "archived"),
     supabase
       .from("ai_drafts")
       .select("id,email_messages!inner(user_id)", { count: "exact", head: true })
       .eq("email_messages.user_id", user.id)
+      .neq("email_messages.status", "archived")
       .eq("status", "approved"),
     supabase
       .from("extracted_trade_details")
       .select("missing_fields,risk_notes,email_messages!inner(user_id)")
-      .eq("email_messages.user_id", user.id),
+      .eq("email_messages.user_id", user.id)
+      .neq("email_messages.status", "archived"),
   ]);
 
   const firstMetricError = newEmailsResult.error ?? approvedDraftsResult.error ?? extractionMetricsResult.error;
