@@ -15,7 +15,7 @@ export function DraftCardLink({
   return (
     <Link
       href={navigationTarget}
-      className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm transition hover:border-teal-200 hover:bg-teal-50/30"
+      className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm transition-all duration-150 hover:border-teal-200 hover:shadow-md"
     >
       {children}
     </Link>

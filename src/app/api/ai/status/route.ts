@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { OLLAMA_MODEL } from "@/lib/ai/ollama";
 
 export function GET() {
   return NextResponse.json({
-    enabled: Boolean(process.env.GROQ_API_KEY),
+    enabled: true,
+    provider: "ollama",
+    model: OLLAMA_MODEL,
   });
 }

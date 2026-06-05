@@ -50,11 +50,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ processed: 0, skipped: 0, inserted: 0, errors }, { status: 500 });
   }
 
-  if (!process.env.GROQ_API_KEY) {
-    errors.push({ step: "config", message: "GROQ_API_KEY is missing." });
-    return NextResponse.json({ processed: 0, skipped: 0, inserted: 0, errors }, { status: 500 });
-  }
-
   const cookieResponse = NextResponse.next({
     request,
   });

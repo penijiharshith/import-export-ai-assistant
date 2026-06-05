@@ -27,6 +27,30 @@ type ExtractedTradeDetailsRow = {
   risk_notes: string[] | null;
 };
 
+export type AiActionSuggestion = {
+  id: string;
+  roleContext: string;
+  summary: string;
+  businessGoal: string;
+  recommendedAction: string;
+  urgency: string;
+  missingInfo: string[];
+  risks: string[];
+  suggestedReplyType: string;
+};
+
+type AiActionSuggestionRow = {
+  id: string;
+  role_context: string | null;
+  summary: string | null;
+  business_goal: string | null;
+  recommended_action: string | null;
+  urgency: string | null;
+  missing_info: unknown;
+  risks: unknown;
+  suggested_reply_type: string | null;
+};
+
 export type EmailLoadResult = {
   emails: TradeEmail[];
   source: "supabase" | "mock";
@@ -38,6 +62,7 @@ export type EmailDetailLoadResult = {
   source: "supabase" | "mock";
   extractionSource: "supabase" | "mock";
   draftId: string | null;
+  actionSuggestion: AiActionSuggestion | null;
   error: string | null;
 };
 
@@ -108,6 +133,24 @@ function mapEmailMessageRowWithExtraction(
     },
     missing: extraction.missing_fields ?? [],
     risks: extraction.risk_notes ?? [],
+  };
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+}
+
+function mapAiActionSuggestion(row: AiActionSuggestionRow): AiActionSuggestion {
+  return {
+    id: row.id,
+    roleContext: row.role_context ?? "coordinator",
+    summary: row.summary ?? "No summary available.",
+    businessGoal: row.business_goal ?? "Review the trade email.",
+    recommendedAction: row.recommended_action ?? "Review and decide the next response.",
+    urgency: row.urgency ?? "medium",
+    missingInfo: stringList(row.missing_info),
+    risks: stringList(row.risks),
+    suggestedReplyType: row.suggested_reply_type ?? "clarification",
   };
 }
 
@@ -191,6 +234,7 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
       source: "mock",
       extractionSource: "mock",
       draftId: null,
+      actionSuggestion: null,
       error: null,
     };
   }
@@ -204,6 +248,7 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
       source: "mock",
       extractionSource: "mock",
       draftId: null,
+      actionSuggestion: null,
       error: "Supabase is not configured.",
     };
   }
@@ -231,6 +276,7 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
       source: "mock",
       extractionSource: "mock",
       draftId: null,
+      actionSuggestion: null,
       error: userError?.message ?? "User is not authenticated.",
     };
   }
@@ -248,6 +294,7 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
       source: "mock",
       extractionSource: "mock",
       draftId: null,
+      actionSuggestion: null,
       error: emailError?.message ?? null,
     };
   }
@@ -264,12 +311,24 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
     .eq("email_id", emailId)
     .maybeSingle();
 
+  const { data: suggestionRow, error: suggestionError } = await supabase
+    .from("ai_action_suggestions")
+    .select("id,role_context,summary,business_goal,recommended_action,urgency,missing_info,risks,suggested_reply_type")
+    .eq("email_id", emailId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   if (extractionError) {
     return {
       email: mapEmailMessageRow(emailRow as EmailMessageRow),
       source: "supabase",
       extractionSource: "mock",
       draftId: (draftRow as { id?: string } | null)?.id ?? null,
+      actionSuggestion: suggestionError || !suggestionRow
+        ? null
+        : mapAiActionSuggestion(suggestionRow as AiActionSuggestionRow),
       error: extractionError.message,
     };
   }
@@ -282,6 +341,9 @@ export async function getEmailDetailForCurrentUser(emailId: string): Promise<Ema
     source: "supabase",
     extractionSource: extractionRow ? "supabase" : "mock",
     draftId: draftError ? null : ((draftRow as { id?: string } | null)?.id ?? null),
-    error: draftError?.message ?? null,
+    actionSuggestion: suggestionError || !suggestionRow
+      ? null
+      : mapAiActionSuggestion(suggestionRow as AiActionSuggestionRow),
+    error: draftError?.message ?? suggestionError?.message ?? null,
   };
 }

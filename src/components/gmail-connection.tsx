@@ -112,21 +112,21 @@ export function GmailConnection() {
   const gmailPermissionGranted = debug?.gmailPermissionGranted ?? false;
 
   return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-950">
+    <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
         <Mail size={18} aria-hidden="true" />
         Gmail connection
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-sm text-zinc-500">Gmail Connected</p>
+        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">Gmail connected</p>
           <p className={`mt-2 text-xl font-semibold ${providerTokenExists ? "text-teal-800" : "text-amber-900"}`}>
             {yesNo(providerTokenExists)}
           </p>
         </div>
-        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-          <p className="text-sm text-zinc-500">Gmail Permission Granted</p>
+        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+          <p className="text-sm text-slate-500">Gmail permission granted</p>
           <p className={`mt-2 text-xl font-semibold ${gmailPermissionGranted ? "text-teal-800" : "text-amber-900"}`}>
             {yesNo(gmailPermissionGranted)}
           </p>
@@ -138,7 +138,7 @@ export function GmailConnection() {
           type="button"
           onClick={handleConnectGmail}
           disabled={isConnecting}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white transition-all duration-150 hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isConnecting ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Mail size={16} aria-hidden="true" />}
           {isConnecting ? "Connecting..." : "Connect Gmail"}
@@ -147,7 +147,7 @@ export function GmailConnection() {
           type="button"
           onClick={loadPermissionDebug}
           disabled={isChecking}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isChecking ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <RefreshCw size={16} aria-hidden="true" />}
           {isChecking ? "Checking..." : "Refresh permission status"}
@@ -156,7 +156,7 @@ export function GmailConnection() {
           type="button"
           onClick={handleFetchEmails}
           disabled={isFetchingMessages}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isFetchingMessages ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Inbox size={16} aria-hidden="true" />}
           {isFetchingMessages ? "Fetching..." : "Fetch latest Gmail emails"}
@@ -164,40 +164,40 @@ export function GmailConnection() {
       </div>
 
       {error ? (
-        <p className="mt-4 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
+        <p className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
           {error}
         </p>
       ) : null}
 
       {syncSummary ? (
-        <p className="mt-4 rounded-md border border-teal-200 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
+        <p className="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-3 text-sm leading-6 text-teal-900">
           {syncSummary}
         </p>
       ) : null}
 
       <div className="mt-5">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-950">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
           <Inbox size={16} aria-hidden="true" />
           Latest Gmail emails
         </div>
 
         {messages.length === 0 ? (
-          <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4 text-sm leading-6 text-zinc-500">
+          <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
             No Gmail emails loaded yet. Click &quot;Fetch latest Gmail emails&quot; after connecting Gmail.
           </div>
         ) : (
           <div className="grid gap-3">
             {messages.map((message) => (
-              <article key={message.gmail_message_id} className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
+              <article key={message.gmail_message_id} className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
                 <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
                   <div>
-                    <h3 className="font-semibold text-zinc-950">{message.subject}</h3>
-                    <p className="mt-1 text-sm text-zinc-500">{message.sender}</p>
+                    <h3 className="font-semibold text-slate-900">{message.subject}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{message.sender}</p>
                   </div>
-                  <p className="text-sm text-zinc-500">{formatReceivedAt(message.received_at)}</p>
+                  <p className="text-sm text-slate-500">{formatReceivedAt(message.received_at)}</p>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-zinc-600">{message.snippet}</p>
-                <p className="mt-3 break-all text-xs text-zinc-400">Gmail ID: {message.gmail_message_id}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{message.snippet}</p>
+                <p className="mt-3 break-all text-xs text-slate-400">Gmail ID: {message.gmail_message_id}</p>
               </article>
             ))}
           </div>

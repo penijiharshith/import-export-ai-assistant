@@ -19,15 +19,40 @@ type ExtractionMetricRow = {
   risk_notes: unknown;
 };
 
+type DashboardActionSuggestionRow = {
+  id: string;
+  email_id: string;
+  role_context: string | null;
+  recommended_action: string | null;
+  urgency: string | null;
+  created_at: string | null;
+  email_messages?: {
+    subject?: string | null;
+  } | Array<{
+    subject?: string | null;
+  }> | null;
+};
+
 export type DashboardStat = {
   label: string;
   value: string;
   tone: "teal" | "blue" | "amber" | "rose";
 };
 
+export type DashboardActionSuggestion = {
+  id: string;
+  emailId: string;
+  emailSubject: string;
+  roleContext: string;
+  recommendedAction: string;
+  urgency: string;
+  createdAt: string | null;
+};
+
 export type DashboardDataResult = {
   stats: DashboardStat[];
   emails: TradeEmail[];
+  actionSuggestions: DashboardActionSuggestion[];
   source: "supabase" | "mock";
   error: string | null;
 };
@@ -75,8 +100,41 @@ function mockDashboard(error: string | null = null): DashboardDataResult {
   return {
     stats: mockStats as DashboardStat[],
     emails: tradeEmails,
+    actionSuggestions: [],
     source: "mock",
     error,
+  };
+}
+
+function getJoinedEmailSubject(row: DashboardActionSuggestionRow) {
+  if (Array.isArray(row.email_messages)) {
+    return row.email_messages[0]?.subject ?? "(No subject)";
+  }
+
+  return row.email_messages?.subject ?? "(No subject)";
+}
+
+function urgencyRank(urgency: string) {
+  if (urgency === "high") {
+    return 0;
+  }
+
+  if (urgency === "medium") {
+    return 1;
+  }
+
+  return 2;
+}
+
+function mapActionSuggestionRow(row: DashboardActionSuggestionRow): DashboardActionSuggestion {
+  return {
+    id: row.id,
+    emailId: row.email_id,
+    emailSubject: getJoinedEmailSubject(row),
+    roleContext: row.role_context ?? "coordinator",
+    recommendedAction: row.recommended_action ?? "Review and decide next action.",
+    urgency: row.urgency ?? "medium",
+    createdAt: row.created_at,
   };
 }
 
@@ -138,6 +196,8 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
     newEmailsResult,
     approvedDraftsResult,
     extractionMetricsResult,
+    actionSuggestionsResult,
+    followUpsResult,
   ] = await Promise.all([
     supabase
       .from("email_messages")
@@ -156,9 +216,22 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
       .select("missing_fields,risk_notes,email_messages!inner(user_id)")
       .eq("email_messages.user_id", user.id)
       .neq("email_messages.status", "archived"),
+    supabase
+      .from("ai_action_suggestions")
+      .select("id,email_id,role_context,recommended_action,urgency,created_at,email_messages!inner(subject,status)")
+      .eq("user_id", user.id)
+      .neq("email_messages.status", "archived")
+      .order("created_at", { ascending: false })
+      .limit(20),
+    supabase
+      .from("follow_ups")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "pending")
+      .lte("due_date", new Date().toISOString()),
   ]);
 
-  const firstMetricError = newEmailsResult.error ?? approvedDraftsResult.error ?? extractionMetricsResult.error;
+  const firstMetricError = newEmailsResult.error ?? approvedDraftsResult.error ?? extractionMetricsResult.error ?? followUpsResult.error;
 
   if (firstMetricError) {
     return mockDashboard(firstMetricError.message);
@@ -167,6 +240,20 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
   const extractionRows = (extractionMetricsResult.data ?? []) as ExtractionMetricRow[];
   const missingInfoCount = extractionRows.filter((row) => arrayHasItems(row.missing_fields)).length;
   const highRiskCount = extractionRows.filter((row) => arrayHasItems(row.risk_notes)).length;
+  const actionSuggestions = actionSuggestionsResult.error
+    ? []
+    : ((actionSuggestionsResult.data ?? []) as DashboardActionSuggestionRow[])
+      .map(mapActionSuggestionRow)
+      .sort((first, second) => {
+        const urgencyDifference = urgencyRank(first.urgency) - urgencyRank(second.urgency);
+
+        if (urgencyDifference !== 0) {
+          return urgencyDifference;
+        }
+
+        return new Date(second.createdAt ?? 0).getTime() - new Date(first.createdAt ?? 0).getTime();
+      })
+      .slice(0, 5);
 
   return {
     stats: [
@@ -174,8 +261,10 @@ export async function getDashboardDataForCurrentUser(): Promise<DashboardDataRes
       { label: "Drafts ready", value: String(approvedDraftsResult.count ?? 0), tone: "blue" },
       { label: "Missing info", value: String(missingInfoCount), tone: "amber" },
       { label: "High risk", value: String(highRiskCount), tone: "rose" },
+      { label: "Follow-ups due", value: String(followUpsResult.count ?? 0), tone: "amber" },
     ],
     emails: (latestEmailRows as DashboardEmailRow[]).map(mapEmailRow),
+    actionSuggestions,
     source: "supabase",
     error: null,
   };

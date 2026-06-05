@@ -1,4 +1,4 @@
-import { assertGroqApiKey, getGroqJsonContent, groq, GROQ_MODEL } from "@/lib/ai/groq";
+import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
 
 export const EMAIL_CATEGORIES = [
   "buyer_inquiry",
@@ -61,12 +61,10 @@ export async function classifyEmail({
   body,
   sender,
 }: ClassifyEmailInput): Promise<EmailClassification> {
-  assertGroqApiKey();
-
-  const response = await groq.chat.completions.create({
-    model: GROQ_MODEL,
-    temperature: 0.1,
-    response_format: { type: "json_object" },
+  const response = await ollama.chat({
+    model: OLLAMA_MODEL,
+    options: { temperature: 0.1 },
+    format: "json",
     messages: [
       {
         role: "system",
@@ -107,7 +105,7 @@ export async function classifyEmail({
     ],
   });
 
-  const outputText = getGroqJsonContent(response);
+  const outputText = getOllamaJsonContent(response);
 
   return normalizeClassification(JSON.parse(outputText));
 }

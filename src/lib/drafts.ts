@@ -59,6 +59,7 @@ export type DraftDetailLoadResult = {
   draft: AiDraft;
   sourceEmail: SourceEmailSummary;
   extraction: DraftExtractionDetails | null;
+  userEmail: string;
   source: "supabase" | "mock";
   error: string | null;
 };
@@ -145,7 +146,7 @@ function mapDraftRow(row: DraftRow): AiDraft {
   };
 }
 
-function mockDraftDetail(id: string, fallbackReason: string | null = null): DraftDetailLoadResult {
+function mockDraftDetail(id: string, fallbackReason: string | null = null, userEmail = "your@email.com"): DraftDetailLoadResult {
   const draft = aiDrafts.find((item) => item.emailId === id || item.id === id) ?? aiDrafts[0];
   const sourceEmail = tradeEmails.find((item) => item.id === draft.emailId) ?? tradeEmails[0];
 
@@ -170,6 +171,7 @@ function mockDraftDetail(id: string, fallbackReason: string | null = null): Draf
       missing_fields: sourceEmail.missing,
       risk_notes: sourceEmail.risks,
     },
+    userEmail,
     source: "mock",
     error: fallbackReason,
   };
@@ -295,7 +297,7 @@ export async function getDraftDetailForCurrentUser(id: string): Promise<DraftDet
     const fallbackReason = error?.message ?? "Supabase returned no matching ai_drafts row for this draft UUID.";
 
     return {
-      ...mockDraftDetail(id, fallbackReason),
+      ...mockDraftDetail(id, fallbackReason, user.email ?? "your@email.com"),
       error: fallbackReason,
     };
   }
@@ -333,6 +335,7 @@ export async function getDraftDetailForCurrentUser(id: string): Promise<DraftDet
           missing_fields: (extractionRow.missing_fields as string[] | null) ?? [],
           risk_notes: (extractionRow.risk_notes as string[] | null) ?? [],
     },
+    userEmail: user.email ?? "your@email.com",
     source: "supabase",
     error: extractionError?.message ?? null,
   };

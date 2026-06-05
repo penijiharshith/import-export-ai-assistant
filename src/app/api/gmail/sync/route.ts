@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
           .update({
             sender: message.sender,
             subject: message.subject,
-            body: message.snippet,
+            body: message.body,
             category: "unclassified",
             status: existingByGmailId.get(message.gmail_message_id)?.status === "archived" ? "archived" : "new",
             received_at: message.received_at,
@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
         gmail_message_id: message.gmail_message_id,
         sender: message.sender,
         subject: message.subject,
-        body: message.snippet,
+        body: message.body,
         category: "unclassified",
         status: "new",
         received_at: message.received_at,

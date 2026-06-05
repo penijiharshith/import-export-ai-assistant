@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import { LogOut, Loader2, UserRound } from "lucide-react";
 import { getCurrentUser, signOut } from "@/lib/auth";
 
-export function UserProfile() {
+export function UserProfile({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,27 +60,27 @@ export function UserProfile() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-500">
-        <Loader2 className="animate-spin" size={16} aria-hidden="true" />
+      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
         Loading user
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2 shadow-sm">
+    <div className={`flex gap-2 ${compact ? "flex-col" : "flex-col items-end sm:flex-row sm:items-center"}`}>
+      <div className={`flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 ${compact ? "" : "shadow-sm"}`}>
         {avatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={avatarUrl} alt="" className="size-8 rounded-full object-cover" referrerPolicy="no-referrer" />
         ) : (
-          <span className="grid size-8 place-items-center rounded-full bg-zinc-100 text-zinc-600">
-            <UserRound size={16} aria-hidden="true" />
+          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-600">
+            <UserRound className="size-4" aria-hidden="true" />
           </span>
         )}
         <div className="min-w-0">
-          <p className="max-w-40 truncate text-sm font-semibold text-zinc-950">{user?.email ?? "Signed in user"}</p>
-          {error ? <p className="max-w-40 truncate text-xs text-rose-700">{error}</p> : null}
+          <p className="truncate text-xs font-semibold text-slate-900">{user?.email ?? "Signed in user"}</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">{error ?? "Google account"}</p>
         </div>
       </div>
 
@@ -88,9 +88,9 @@ export function UserProfile() {
         type="button"
         onClick={handleSignOut}
         disabled={isSigningOut}
-        className="inline-flex h-10 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition-all duration-150 hover:bg-slate-50 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSigningOut ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <LogOut size={16} aria-hidden="true" />}
+        {isSigningOut ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <LogOut className="size-4" aria-hidden="true" />}
         Logout
       </button>
     </div>

@@ -17,7 +17,7 @@ export function ToastNotice({ toast }: { toast: ToastState }) {
   return (
     <div
       role="status"
-      className={`fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-lg border p-4 text-sm shadow-lg ${
+      className={`fixed bottom-5 right-5 z-50 flex max-w-sm items-start gap-3 rounded-xl border p-4 text-sm shadow-lg ${
         isSuccess
           ? "border-teal-200 bg-teal-50 text-teal-950"
           : "border-rose-200 bg-rose-50 text-rose-950"

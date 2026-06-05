@@ -45,10 +45,11 @@ export function ArchiveEmailButton({ emailId }: { emailId: string }) {
         type="button"
         onClick={handleArchive}
         disabled={isArchiving || isPending}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="grid size-8 place-items-center rounded-lg text-slate-400 transition-all duration-150 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-label="Remove email from this app"
+        title="Remove email from this app"
       >
-        {isArchiving || isPending ? <Loader2 className="animate-spin" size={16} aria-hidden="true" /> : <Trash2 size={16} aria-hidden="true" />}
-        Remove
+        {isArchiving || isPending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />}
       </button>
       <ToastNotice toast={toast} />
     </>

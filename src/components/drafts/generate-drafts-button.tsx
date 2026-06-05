@@ -60,7 +60,7 @@ export function GenerateDraftsButton() {
         type="button"
         onClick={handleGenerateDrafts}
         disabled={isGenerating || isPending}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white transition-all duration-150 hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isGenerating || isPending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <WandSparkles size={17} aria-hidden="true" />}
         {isGenerating || isPending ? "Generating..." : "Generate AI drafts"}

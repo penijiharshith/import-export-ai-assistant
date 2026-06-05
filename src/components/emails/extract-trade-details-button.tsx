@@ -44,15 +44,15 @@ export function ExtractTradeDetailsButton() {
   }
 
   return (
-    <div className="flex flex-col gap-2 sm:items-end">
+    <div className="flex flex-col gap-2">
       <button
         type="button"
         onClick={handleExtractTradeDetails}
         disabled={isExtracting || isPending}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isExtracting || isPending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <FileSearch size={17} aria-hidden="true" />}
-        {isExtracting || isPending ? "Extracting..." : "Extract trade details"}
+        {isExtracting || isPending ? "Extracting..." : "Extract"}
       </button>
       {message ? <p className="text-sm font-medium text-teal-800">{message}</p> : null}
       {error ? <p className="max-w-sm text-sm font-medium text-rose-700">{error}</p> : null}

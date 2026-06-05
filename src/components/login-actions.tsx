@@ -27,20 +27,20 @@ export function LoginActions() {
         type="button"
         onClick={handleGoogleLogin}
         disabled={isLoading || !isSupabaseConfigured}
-        className="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {isLoading ? <Loader2 className="animate-spin" size={18} aria-hidden="true" /> : <Globe2 size={18} aria-hidden="true" />}
         {isLoading ? "Connecting..." : "Continue with Google"}
       </button>
 
       {!isSupabaseConfigured ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
           Supabase keys are missing. Add them to your local `.env.local` before using Google login.
         </p>
       ) : null}
 
       {error ? (
-        <p className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
+        <p className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm leading-6 text-rose-900">
           {error}
         </p>
       ) : null}

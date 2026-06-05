@@ -27,10 +27,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "missing_supabase_config" }, { status: 500 });
   }
 
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: "missing_groq_api_key" }, { status: 500 });
-  }
-
   const cookieResponse = NextResponse.next({
     request,
   });

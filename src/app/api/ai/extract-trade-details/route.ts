@@ -11,7 +11,31 @@ type EmailRow = {
 };
 
 type ExistingExtractionRow = {
+  id: string;
   email_id: string;
+};
+
+const reminderMap: Record<string, { note: string; days: number; type: string }> = {
+  buyer_inquiry: {
+    type: "buyer_no_reply",
+    note: "Follow up if buyer has not responded to your quotation",
+    days: 3,
+  },
+  supplier_quote: {
+    type: "quote_expiring",
+    note: "Review supplier quote before it expires",
+    days: 5,
+  },
+  payment: {
+    type: "payment_pending",
+    note: "Confirm payment has been received or follow up",
+    days: 2,
+  },
+  shipment_update: {
+    type: "shipment_deadline",
+    note: "Confirm shipment status and update buyer",
+    days: 1,
+  },
 };
 
 function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSource: NextResponse) {
@@ -24,16 +48,31 @@ function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSo
   return response;
 }
 
+function parseNumericValue(value: string | null | undefined) {
+  const match = value?.replaceAll(",", "").match(/\d+(?:\.\d+)?/);
+
+  return match ? Number(match[0]) : null;
+}
+
+function parseIntegerValue(value: string | null | undefined) {
+  const normalized = value?.replaceAll(",", "") ?? "";
+  const match = normalized.match(/\d+(?:\.\d+)?/);
+
+  if (!match) {
+    return null;
+  }
+
+  const multiplier = /\d+(?:\.\d+)?\s*k\b/i.test(normalized) ? 1000 : 1;
+
+  return Math.round(Number(match[0]) * multiplier);
+}
+
 export async function POST(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return NextResponse.json({ error: "missing_supabase_config" }, { status: 500 });
-  }
-
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: "missing_groq_api_key" }, { status: 500 });
   }
 
   const cookieResponse = NextResponse.next({
@@ -83,7 +122,7 @@ export async function POST(request: NextRequest) {
 
   const { data: existingExtractions, error: existingError } = await supabase
     .from("extracted_trade_details")
-    .select("email_id")
+    .select("id,email_id")
     .in(
       "email_id",
       emailRows.map((email) => email.id)
@@ -100,7 +139,10 @@ export async function POST(request: NextRequest) {
   const existingEmailIds = new Set(
     ((existingExtractions ?? []) as ExistingExtractionRow[]).map((row) => row.email_id)
   );
-  const emailsToExtract = emailRows.filter((email) => !existingEmailIds.has(email.id)).slice(0, 10);
+  const existingExtractionByEmailId = new Map(
+    ((existingExtractions ?? []) as ExistingExtractionRow[]).map((row) => [row.email_id, row.id])
+  );
+  const emailsToExtract = emailRows.slice(0, 10);
   const results = [];
 
   for (const email of emailsToExtract) {
@@ -111,10 +153,30 @@ export async function POST(request: NextRequest) {
       category: email.category,
     });
 
-    const { error: insertError } = await supabase.from("extracted_trade_details").insert({
-      email_id: email.id,
-      ...details,
-    });
+    const extractionRow = {
+      product: details.product,
+      quantity: details.quantity,
+      price: details.price,
+      incoterm: details.incoterm,
+      origin_country: details.origin_country,
+      destination_country: details.destination_country,
+      delivery_date: details.delivery_date,
+      payment_terms: details.payment_terms,
+      missing_fields: details.missing_fields,
+      risk_notes: details.risk_notes,
+    };
+    const existingExtractionId = existingExtractionByEmailId.get(email.id);
+    const mutation = existingExtractionId
+      ? supabase
+        .from("extracted_trade_details")
+        .update(extractionRow)
+        .eq("id", existingExtractionId)
+      : supabase.from("extracted_trade_details").insert({
+        email_id: email.id,
+        ...extractionRow,
+      });
+
+    const { error: insertError } = await mutation;
 
     if (insertError) {
       return jsonWithCookies(
@@ -128,8 +190,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (email.category === "supplier_quote") {
+      const { error: quoteError } = await supabase.from("supplier_quotes").upsert(
+        {
+          user_id: user.id,
+          email_id: email.id,
+          supplier_name: details.supplier_name ?? email.sender ?? null,
+          product: details.product,
+          unit_price: parseNumericValue(details.price),
+          currency: details.currency ?? "USD",
+          quantity: parseIntegerValue(details.quantity),
+          moq: parseIntegerValue(details.moq),
+          incoterm: details.incoterm,
+          lead_time: details.lead_time ?? details.delivery_date,
+          payment_terms: details.payment_terms,
+          destination_country: details.destination_country,
+          risk_notes: details.risk_notes.join("; ") || null,
+        },
+        { onConflict: "email_id" }
+      );
+
+      if (quoteError) {
+        return jsonWithCookies(
+          {
+            error: "supplier_quote_upsert_failed",
+            message: quoteError.message,
+            extracted: results.length,
+          },
+          { status: 500 },
+          cookieResponse
+        );
+      }
+    }
+
+    const reminder = email.category ? reminderMap[email.category] : null;
+
+    if (reminder) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + reminder.days);
+
+      const { error: reminderError } = await supabase.from("follow_ups").upsert(
+        {
+          user_id: user.id,
+          email_id: email.id,
+          reminder_type: reminder.type,
+          note: reminder.note,
+          due_date: dueDate.toISOString(),
+          follow_up_date: dueDate.toISOString(),
+          status: "pending",
+        },
+        { onConflict: "email_id" }
+      );
+
+      if (reminderError) {
+        return jsonWithCookies(
+          {
+            error: "follow_up_upsert_failed",
+            message: reminderError.message,
+            extracted: results.length,
+          },
+          { status: 500 },
+          cookieResponse
+        );
+      }
+    }
+
     results.push({
       email_id: email.id,
+      action: existingEmailIds.has(email.id) ? "updated" : "inserted",
       ...details,
     });
   }

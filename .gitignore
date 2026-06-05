@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -19,10 +20,29 @@
 
 # production
 /build
+/dist
+dist/
+/target
 
 # misc
 .DS_Store
 *.pem
+*.tmp
+*.temp
+*.log
+__pycache__/
+*.py[cod]
+*.pyc
+venv/
+.venv/
+*.db
+*.sqlite3
+*.egg-info/
+.pytest_cache/
+.streamlit/secrets.toml
+chroma_db/
+vectorstore/
+.sixth/
 
 # debug
 npm-debug.log*
@@ -32,6 +52,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
+.env.*.local
 !.env.example
 
 # vercel
