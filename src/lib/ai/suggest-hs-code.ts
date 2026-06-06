@@ -1,4 +1,4 @@
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export interface HSCodeResult {
   product: string;
@@ -49,11 +49,8 @@ function normalizeResult(value: unknown, product: string): HSCodeResult {
 }
 
 export async function suggestHSCode(product: string, destinationCountry?: string): Promise<HSCodeResult> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.1 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -106,13 +103,13 @@ export async function suggestHSCode(product: string, destinationCountry?: string
         ].join("\n"),
       },
     ],
-  });
-  const content = getOllamaJsonContent(response);
+    { temperature: 0.1, json: true }
+  );
 
   try {
     return normalizeResult(JSON.parse(content), product);
   } catch {
-    console.error("Unable to parse Ollama HS code response:", content);
-    throw new Error("Ollama HS code suggestion returned invalid JSON.");
+    console.error("Unable to parse Groq HS code response:", content);
+    throw new Error("Groq HS code suggestion returned invalid JSON.");
   }
 }

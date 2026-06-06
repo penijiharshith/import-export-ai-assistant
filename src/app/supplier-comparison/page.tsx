@@ -37,7 +37,7 @@ export default async function SupplierComparisonPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Procurement</p>
         <h1 className="mt-2 text-3xl font-semibold text-slate-900">Supplier comparison</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Compare extracted supplier offers and review Ollama-assisted buying recommendations.
+          Compare extracted supplier offers and review Groq-assisted buying recommendations.
         </p>
       </div>
 

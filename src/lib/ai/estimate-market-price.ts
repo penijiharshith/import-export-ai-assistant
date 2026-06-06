@@ -1,4 +1,4 @@
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export interface MarketPriceEstimate {
   product: string;
@@ -50,11 +50,8 @@ function normalizeEstimate(value: unknown): MarketPriceEstimate {
 export async function estimateMarketPrice(
   tradeDetails: Record<string, string>
 ): Promise<MarketPriceEstimate> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.2 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -91,13 +88,13 @@ export async function estimateMarketPrice(
         ].join("\n"),
       },
     ],
-  });
-  const content = getOllamaJsonContent(response);
+    { temperature: 0.2, json: true }
+  );
 
   try {
     return normalizeEstimate(JSON.parse(content));
   } catch {
-    console.error("Unable to parse Ollama market price estimate response:", content);
-    throw new Error("Ollama market price estimate returned invalid JSON.");
+    console.error("Unable to parse Groq market price estimate response:", content);
+    throw new Error("Groq market price estimate returned invalid JSON.");
   }
 }

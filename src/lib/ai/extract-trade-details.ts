@@ -1,5 +1,5 @@
 import type { EmailCategory } from "@/lib/ai/classify-email";
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export type ExtractTradeDetailsInput = {
   subject: string | null;
@@ -45,7 +45,7 @@ type ParsedTradeDetails = Partial<Record<TradeField, string | null>> & {
   risk_notes: string[];
 };
 
-type OllamaFallbackDetails = Partial<Record<TradeField | "supplier_name" | "currency" | "moq" | "lead_time" | "packaging", string | null>>;
+type GroqFallbackDetails = Partial<Record<TradeField | "supplier_name" | "currency" | "moq" | "lead_time" | "packaging", string | null>>;
 
 type ValidationResult = {
   name: string;
@@ -154,8 +154,8 @@ function compactValue(value: string) {
   return nullableString(value.replace(/\s+/g, " ").replace(/^[\s:=-]+/, "").replace(/[.;,\s]+$/g, ""));
 }
 
-function normalizeOllamaFallbackDetails(value: unknown): OllamaFallbackDetails {
-  const candidate = value && typeof value === "object" ? (value as OllamaFallbackDetails) : {};
+function normalizeGroqFallbackDetails(value: unknown): GroqFallbackDetails {
+  const candidate = value && typeof value === "object" ? (value as GroqFallbackDetails) : {};
 
   return {
     product: nullableString(candidate.product),
@@ -518,7 +518,7 @@ function addRiskNotes(text: string, details: ParsedTradeDetails) {
 function mergeParsedDetails(
   structured: ParsedTradeDetails,
   messy: ParsedTradeDetails,
-  aiDetails: OllamaFallbackDetails | null
+  aiDetails: GroqFallbackDetails | null
 ): ExtractedTradeDetails {
   const merged: ExtractedTradeDetails = { ...emptyDetails };
 
@@ -572,7 +572,7 @@ function computeMissingFields(details: ExtractedTradeDetails, sourceText: string
   });
 }
 
-async function extractOllamaFallback({
+async function extractGroqFallback({
   subject,
   body,
   sender,
@@ -583,11 +583,8 @@ async function extractOllamaFallback({
   currentDetails: ExtractedTradeDetails & { moq?: string | null };
   missingFields: string[];
 }) {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.05 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -610,10 +607,11 @@ async function extractOllamaFallback({
         }),
       },
     ],
-  });
+    { temperature: 0.05, json: true }
+  );
 
   try {
-    return normalizeOllamaFallbackDetails(JSON.parse(getOllamaJsonContent(response)));
+    return normalizeGroqFallbackDetails(JSON.parse(content));
   } catch {
     return {};
   }
@@ -622,7 +620,7 @@ async function extractOllamaFallback({
 function buildFinalDetails(
   structured: ParsedTradeDetails,
   messy: ParsedTradeDetails,
-  aiDetails: OllamaFallbackDetails | null,
+  aiDetails: GroqFallbackDetails | null,
   sourceText: string
 ) {
   const merged = mergeParsedDetails(structured, messy, aiDetails);
@@ -742,7 +740,7 @@ export async function extractTradeDetails({
   ];
   const missingFields = fallbackFields.filter((field) => !currentDetails[field]);
   const aiDetails = missingFields.length > 0
-    ? await extractOllamaFallback({
+    ? await extractGroqFallback({
       subject,
       body,
       sender,

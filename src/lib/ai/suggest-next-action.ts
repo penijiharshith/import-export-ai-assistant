@@ -1,5 +1,5 @@
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 import { TRADE_COPILOT_SYSTEM_PROMPT } from "@/lib/ai/trade-copilot-system-prompt";
 
 export type BusinessRole = "buyer" | "seller" | "both";
@@ -106,11 +106,8 @@ export async function suggestNextAction({
   extractedTradeDetails,
   businessRole,
 }: SuggestNextActionInput): Promise<NextActionSuggestion> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.2 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -140,9 +137,10 @@ export async function suggestNextAction({
         }),
       },
     ],
-  });
+    { temperature: 0.2, json: true }
+  );
 
-  const suggestion = normalizeSuggestion(JSON.parse(getOllamaJsonContent(response)));
+  const suggestion = normalizeSuggestion(JSON.parse(content));
 
   if (category === "buyer_inquiry" && hasCompleteBuyerInquiry(extractedTradeDetails)) {
     return {

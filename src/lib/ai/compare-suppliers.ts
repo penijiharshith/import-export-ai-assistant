@@ -1,4 +1,4 @@
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export type SupplierQuote = {
   id: string;
@@ -72,11 +72,8 @@ function normalizeComparison(value: unknown): ComparisonResult {
 }
 
 export async function compareSupplierQuotes(quotes: SupplierQuote[]): Promise<ComparisonResult> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.15 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -112,11 +109,12 @@ export async function compareSupplierQuotes(quotes: SupplierQuote[]): Promise<Co
         ].join("\n"),
       },
     ],
-  });
+    { temperature: 0.15, json: true }
+  );
 
   try {
-    return normalizeComparison(JSON.parse(getOllamaJsonContent(response)));
+    return normalizeComparison(JSON.parse(content));
   } catch {
-    throw new Error("Ollama supplier comparison returned invalid JSON.");
+    throw new Error("Groq supplier comparison returned invalid JSON.");
   }
 }

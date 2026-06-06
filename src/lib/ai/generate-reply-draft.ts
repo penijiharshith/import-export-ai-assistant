@@ -1,5 +1,5 @@
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export type GenerateReplyDraftInput = {
   subject: string | null;
@@ -63,11 +63,8 @@ export async function generateReplyDraft({
   category,
   extractedTradeDetails,
 }: GenerateReplyDraftInput): Promise<GeneratedReplyDraft> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.3 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -166,7 +163,8 @@ export async function generateReplyDraft({
         }),
       },
     ],
-  });
+    { temperature: 0.3, json: true }
+  );
 
-  return normalizeDraft(JSON.parse(getOllamaJsonContent(response)));
+  return normalizeDraft(JSON.parse(content));
 }

@@ -73,7 +73,7 @@ function LandedCostCard({ result }: { result: LandedCostResult }) {
           <Sparkles size={17} aria-hidden="true" />
           Landed Cost Breakdown
         </div>
-        <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">Ollama</span>
+        <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">Groq</span>
       </div>
 
       <p className="mt-4 text-sm leading-6 text-slate-700">

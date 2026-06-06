@@ -7,12 +7,14 @@ Set these in Vercel Project Settings -> Environment Variables:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
-OLLAMA_MODEL=qwen2.5-coder:7b
+GROQ_API_KEY=your_key_here
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 Notes:
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public browser-safe Supabase values.
-- `OLLAMA_MODEL` selects the local Ollama model used by server-side AI routes.
+- `GROQ_API_KEY` is required for server-side AI routes.
+- `GROQ_MODEL` is optional and defaults to `llama-3.3-70b-versatile`.
 - Gmail access tokens are not stored as environment variables. They are created through Google OAuth and stored in the user's Supabase session plus an HttpOnly app cookie.
 
 ## Supabase Setup
@@ -54,11 +56,11 @@ In Google Cloud Console:
 3. If the Google OAuth app is in Testing mode, add test users.
 4. Users may need to reconnect Gmail after scope changes.
 
-## Ollama Setup
+## Groq Setup
 
-1. Install and run Ollama where the Next.js server can reach it.
-2. Pull the default model: `ollama pull qwen2.5-coder:7b`.
-3. Keep Ollama available at `http://localhost:11434` for local development. Hosted deployments need an equivalent reachable Ollama service.
+1. Get free Groq API key at https://console.groq.com.
+2. Add it to your local and hosted environment variables as `GROQ_API_KEY=your_key_here`.
+3. Optionally set `GROQ_MODEL=llama-3.3-70b-versatile`.
 
 ## Vercel Deploy Steps
 
@@ -98,6 +100,6 @@ http://localhost:3000/auth/callback
 The app fails safely when required config is missing:
 
 - Missing Supabase URL/key redirects protected routes to login or returns `missing_supabase_config`.
-- Missing or unreachable Ollama returns an AI route error from the local model call.
+- Missing or invalid Groq configuration returns an AI route error from the hosted model call.
 - Missing Gmail OAuth token returns `gmail_not_connected` from Gmail fetch/send routes.
 - Server-only secrets are not exposed to client code. Only `NEXT_PUBLIC_*` values are readable in the browser.

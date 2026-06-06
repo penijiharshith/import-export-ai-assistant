@@ -70,7 +70,7 @@ function HSCodeCard({ result }: { result: HSCodeResult }) {
           <Sparkles size={17} aria-hidden="true" />
           HS Code Suggestion
         </div>
-        <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">Ollama</span>
+        <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-semibold text-teal-800">Groq</span>
       </div>
 
       <dl className="mt-4 space-y-3 text-sm">

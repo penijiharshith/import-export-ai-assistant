@@ -1,4 +1,4 @@
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export interface LandedCostResult {
   product: string;
@@ -78,11 +78,8 @@ function normalizeResult(value: unknown, details: LandedCostDetails): LandedCost
 }
 
 export async function calculateLandedCost(details: LandedCostDetails): Promise<LandedCostResult> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.15 },
-    format: "json",
-    messages: [
+  const content = await chat(
+    [
       {
         role: "system",
         content: [
@@ -148,13 +145,13 @@ export async function calculateLandedCost(details: LandedCostDetails): Promise<L
         ].join("\n"),
       },
     ],
-  });
-  const content = getOllamaJsonContent(response);
+    { temperature: 0.15, json: true }
+  );
 
   try {
     return normalizeResult(JSON.parse(content), details);
   } catch {
-    console.error("Unable to parse Ollama landed cost response:", content);
-    throw new Error("Ollama landed cost calculation returned invalid JSON.");
+    console.error("Unable to parse Groq landed cost response:", content);
+    throw new Error("Groq landed cost calculation returned invalid JSON.");
   }
 }

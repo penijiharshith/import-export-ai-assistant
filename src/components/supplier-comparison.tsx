@@ -272,7 +272,7 @@ export function SupplierComparison() {
       {comparison ? (
         <section className="space-y-5">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Ollama analysis</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Groq analysis</p>
             <h2 className="mt-2 text-2xl font-semibold text-slate-900">Supplier comparison</h2>
             <p className="mt-3 max-w-4xl text-sm leading-7 text-slate-600">{comparison.summary}</p>
           </div>

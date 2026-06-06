@@ -22,27 +22,28 @@ Import Export AI Assistant is a Next.js trade workspace for Gmail-connected impo
 - Language: TypeScript
 - Framework: Next.js 16, React 19
 - Database: Supabase Postgres
-- Ollama model: `qwen2.5-coder:7b`
+- AI: Groq API (`llama-3.3-70b-versatile`)
 
 ## Prerequisites
 - Node.js 20 or newer
 - npm
 - Supabase project with `supabase/schema.sql` applied
 - Google OAuth credentials configured in Supabase Auth
-- Ollama running locally
-- `ollama pull qwen2.5-coder:7b`
+- Free Groq API key - get one at https://console.groq.com (no credit card needed)
 
 ## Setup
 1. `git clone <repo> && cd import-export-ai-assistant`
 2. `cp .env.example .env.local` - fill in your values
 3. `npm install`
-4. `ollama serve`
-5. `npm run dev`
+4. Get free Groq API key at https://console.groq.com
+5. Add to your `.env.local` file: `GROQ_API_KEY=your_key_here`
+6. `npm run dev`
 
 ## Environment Variables
 | Variable | Required | Description |
 |---|---|---|
-| `OLLAMA_MODEL` | Yes | Local Ollama model used by AI routes. |
+| `GROQ_API_KEY` | Required | Free API key from console.groq.com |
+| `GROQ_MODEL` | Optional | Default: llama-3.3-70b-versatile |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Public Supabase project URL used by browser and server clients. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Public Supabase anon key used by browser and server clients. |
 | `SUPABASE_SERVICE_ROLE_KEY` | No | Placeholder for server-side admin workflows; current source does not read it. |

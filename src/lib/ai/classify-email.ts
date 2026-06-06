@@ -1,4 +1,4 @@
-import { getOllamaJsonContent, OLLAMA_MODEL, ollama } from "@/lib/ai/ollama";
+import { chat } from "@/lib/ai/groq";
 
 export const EMAIL_CATEGORIES = [
   "buyer_inquiry",
@@ -61,11 +61,8 @@ export async function classifyEmail({
   body,
   sender,
 }: ClassifyEmailInput): Promise<EmailClassification> {
-  const response = await ollama.chat({
-    model: OLLAMA_MODEL,
-    options: { temperature: 0.1 },
-    format: "json",
-    messages: [
+  const outputText = await chat(
+    [
       {
         role: "system",
         content:
@@ -103,9 +100,8 @@ export async function classifyEmail({
         }),
       },
     ],
-  });
-
-  const outputText = getOllamaJsonContent(response);
+    { temperature: 0.1, json: true }
+  );
 
   return normalizeClassification(JSON.parse(outputText));
 }
