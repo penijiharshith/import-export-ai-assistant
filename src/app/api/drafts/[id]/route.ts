@@ -56,7 +56,7 @@ export async function PATCH(
 
   const { data: draft, error: draftError } = await supabase
     .from("ai_drafts")
-    .select("id,email_messages!inner(user_id)")
+    .select("id,email_id,email_messages!inner(user_id)")
     .eq("id", id)
     .eq("email_messages.user_id", user.id)
     .maybeSingle();
@@ -71,10 +71,12 @@ export async function PATCH(
       subject,
       body: draftBody,
     })
-    .eq("id", id);
+    .eq("id", draft.id)
+    .eq("email_id", draft.email_id);
 
   if (updateError) {
-    return jsonWithCookies({ error: "draft_update_failed", message: updateError.message }, { status: 500 }, cookieResponse);
+    console.error("Draft update failed:", updateError);
+    return jsonWithCookies({ error: "draft_update_failed", message: "Unable to update draft." }, { status: 500 }, cookieResponse);
   }
 
   return jsonWithCookies({ ok: true }, undefined, cookieResponse);

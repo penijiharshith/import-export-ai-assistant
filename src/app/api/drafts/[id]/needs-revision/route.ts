@@ -48,7 +48,7 @@ export async function POST(
 
   const { data: draft, error: draftError } = await supabase
     .from("ai_drafts")
-    .select("id,email_messages!inner(user_id)")
+    .select("id,email_id,email_messages!inner(user_id)")
     .eq("id", id)
     .eq("email_messages.user_id", user.id)
     .maybeSingle();
@@ -63,10 +63,12 @@ export async function POST(
       approved_by_user: false,
       status: "needs_revision",
     })
-    .eq("id", id);
+    .eq("id", draft.id)
+    .eq("email_id", draft.email_id);
 
   if (updateError) {
-    return jsonWithCookies({ error: "draft_revision_failed", message: updateError.message }, { status: 500 }, cookieResponse);
+    console.error("Draft revision update failed:", updateError);
+    return jsonWithCookies({ error: "draft_revision_failed", message: "Unable to mark draft as needs revision." }, { status: 500 }, cookieResponse);
   }
 
   return jsonWithCookies({ ok: true }, undefined, cookieResponse);

@@ -134,7 +134,8 @@ export async function POST(
       .update({
         status: "sent",
       })
-      .eq("id", draft.id);
+      .eq("id", draft.id)
+      .eq("email_id", draft.email_id);
 
     if (draftUpdateError) {
       throw draftUpdateError;
@@ -154,8 +155,7 @@ export async function POST(
 
     return jsonWithCookies({ ok: true, gmail_message_id: sendResult.id }, undefined, cookieResponse);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to send Gmail reply.";
-
-    return jsonWithCookies({ error: "gmail_send_failed", message }, { status: 502 }, cookieResponse);
+    console.error("Gmail draft send failed:", error);
+    return jsonWithCookies({ error: "gmail_send_failed", message: "Unable to send Gmail reply." }, { status: 502 }, cookieResponse);
   }
 }
