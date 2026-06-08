@@ -12,6 +12,28 @@ function isAuthRoute(pathname: string) {
   return authRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+function redirectWithCookies(
+  request: NextRequest,
+  response: NextResponse,
+  pathname: string,
+  searchParams?: Record<string, string>,
+) {
+  const redirectUrl = request.nextUrl.clone();
+  redirectUrl.pathname = pathname;
+  redirectUrl.search = "";
+
+  Object.entries(searchParams ?? {}).forEach(([key, value]) => {
+    redirectUrl.searchParams.set(key, value);
+  });
+
+  const redirectResponse = NextResponse.redirect(redirectUrl);
+  response.cookies.getAll().forEach((cookie) => {
+    redirectResponse.cookies.set(cookie);
+  });
+
+  return redirectResponse;
+}
+
 export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -52,17 +74,11 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user && isProtectedRoute(pathname)) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/login";
-    redirectUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(request, response, "/login", { next: pathname });
   }
 
   if (user && isAuthRoute(pathname)) {
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = "/dashboard";
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(request, response, "/dashboard");
   }
 
   return response;

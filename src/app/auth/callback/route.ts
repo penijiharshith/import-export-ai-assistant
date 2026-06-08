@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
   }
 
-  const response = NextResponse.redirect(new URL("/dashboard", request.url));
+  const dashboardUrl = new URL("/dashboard", request.url);
+  let response = NextResponse.redirect(dashboardUrl);
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -20,6 +21,10 @@ export async function GET(request: NextRequest) {
         return request.cookies.getAll();
       },
       setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => {
+          request.cookies.set(name, value);
+        });
+        response = NextResponse.redirect(dashboardUrl);
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
         });
@@ -29,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (error) {
+  if (error || !data.session) {
     return NextResponse.redirect(new URL("/login?error=auth_callback_failed", request.url));
   }
 

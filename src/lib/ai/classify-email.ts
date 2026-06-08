@@ -56,6 +56,14 @@ function normalizeClassification(value: unknown): EmailClassification {
   };
 }
 
+function parseClassification(outputText: string): EmailClassification {
+  try {
+    return normalizeClassification(JSON.parse(outputText));
+  } catch {
+    return normalizeClassification(null);
+  }
+}
+
 export async function classifyEmail({
   subject,
   body,
@@ -103,5 +111,5 @@ export async function classifyEmail({
     { temperature: 0.1, json: true }
   );
 
-  return normalizeClassification(JSON.parse(outputText));
+  return parseClassification(outputText);
 }

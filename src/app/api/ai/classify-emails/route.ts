@@ -63,44 +63,63 @@ export async function POST(request: NextRequest) {
     .limit(10);
 
   if (emailError) {
-    return jsonWithCookies({ error: "email_fetch_failed", message: emailError.message }, { status: 500 }, cookieResponse);
+    console.error("Unable to fetch emails for classification.", emailError);
+    return jsonWithCookies(
+      { error: "email_fetch_failed", message: "Unable to fetch emails for classification." },
+      { status: 500 },
+      cookieResponse
+    );
   }
 
   const emailRows = (emails ?? []) as EmailRow[];
   const results = [];
 
-  for (const email of emailRows) {
-    const classification = await classifyEmail({
-      subject: email.subject,
-      body: email.body,
-      sender: email.sender,
-    });
+  try {
+    for (const email of emailRows) {
+      const classification = await classifyEmail({
+        subject: email.subject,
+        body: email.body,
+        sender: email.sender,
+      });
 
-    const { error: updateError } = await supabase
-      .from("email_messages")
-      .update({
-        category: classification.category,
-        status: "new",
-      })
-      .eq("id", email.id)
-      .eq("user_id", user.id);
+      const { error: updateError } = await supabase
+        .from("email_messages")
+        .update({
+          category: classification.category,
+          status: "new",
+        })
+        .eq("id", email.id)
+        .eq("user_id", user.id);
 
-    if (updateError) {
-      return jsonWithCookies(
-        {
-          error: "classification_update_failed",
-          message: updateError.message,
-          classified: results.length,
-        },
-        { status: 500 },
-        cookieResponse
-      );
+      if (updateError) {
+        console.error("Unable to update email classification.", updateError);
+        return jsonWithCookies(
+          {
+            error: "classification_update_failed",
+            message: "Unable to save email classification.",
+            classified: results.length,
+          },
+          { status: 500 },
+          cookieResponse
+        );
+      }
+
+      results.push({
+        email_id: email.id,
+        ...classification,
+      });
     }
-
-    results.push({
-      email_id: email.id,
-      ...classification,
-    });
+  } catch (classificationError) {
+    console.error("Unable to classify emails.", classificationError);
+    return jsonWithCookies(
+      {
+        error: "classification_failed",
+        message: "Unable to classify emails.",
+        classified: results.length,
+      },
+      { status: 502 },
+      cookieResponse
+    );
   }
 
   return jsonWithCookies(
