@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { generateReplyDraft } from "@/lib/ai/generate-reply-draft";
+import {
+  AI_PROVIDER_ERROR_MESSAGE,
+  aiConfigurationErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 
 type EmailWithExtractionRow = {
@@ -75,6 +81,10 @@ export async function POST(request: NextRequest) {
   if (userError || !user) {
     errors.push({ step: "auth", message: userError?.message ?? "User is not authenticated." });
     return jsonWithCookies({ processed: 0, skipped: 0, inserted: 0, errors }, { status: 401 }, cookieResponse);
+  }
+
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
   }
 
   const { data: emails, error: emailError } = await supabase
@@ -163,7 +173,13 @@ export async function POST(request: NextRequest) {
         extractedTradeDetails: extraction,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Draft generation failed.";
+      console.error("Draft generation failed.", error);
+
+      if (isAiConfigurationError(error)) {
+        return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+      }
+
+      const message = AI_PROVIDER_ERROR_MESSAGE;
       errors.push({ email_id: email.id, step: "ai_generation", message });
       continue;
     }
@@ -199,6 +215,7 @@ export async function POST(request: NextRequest) {
 
   return jsonWithCookies(
     {
+      ok: errors.length === 0,
       processed: emailsToDraft.length,
       skipped: skippedEmails.length,
       inserted,

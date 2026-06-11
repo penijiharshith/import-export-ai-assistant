@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BarChart2, ExternalLink, Loader2, Scale, Trash2 } from "lucide-react";
 import type { ComparisonResult } from "@/lib/ai/compare-suppliers";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 type SupplierQuoteRow = {
   id: string;
@@ -135,10 +136,14 @@ export function SupplierComparison() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quoteIds: selectedIds }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { comparison?: ComparisonResult } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to compare supplier quotes.");
+        throw new Error(getUserFacingApiError(data, "Unable to compare supplier quotes."));
+      }
+
+      if (!data?.comparison) {
+        throw new Error("Unable to compare supplier quotes.");
       }
 
       setComparison(data.comparison);

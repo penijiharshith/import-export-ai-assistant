@@ -4,6 +4,7 @@ import { useState } from "react";
 import { BarChart3, Loader2, Sparkles } from "lucide-react";
 import type { MarketPriceEstimate } from "@/lib/ai/estimate-market-price";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function MarketPriceEstimate({ emailId }: { emailId: string }) {
   const [estimate, setEstimate] = useState<MarketPriceEstimate | null>(null);
@@ -20,10 +21,14 @@ export function MarketPriceEstimate({ emailId }: { emailId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emailId }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { estimate?: MarketPriceEstimate } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to estimate market pricing.");
+        throw new Error(getUserFacingApiError(data, "Unable to estimate market pricing."));
+      }
+
+      if (!data?.estimate) {
+        throw new Error("Unable to estimate market pricing.");
       }
 
       setEstimate(data.estimate);

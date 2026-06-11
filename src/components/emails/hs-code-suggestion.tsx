@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FileSearch, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import type { HSCodeResult } from "@/lib/ai/suggest-hs-code";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function HSCodeSuggestion({ emailId }: { emailId: string }) {
   const [result, setResult] = useState<HSCodeResult | null>(null);
@@ -20,10 +21,14 @@ export function HSCodeSuggestion({ emailId }: { emailId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emailId }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { result?: HSCodeResult } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to suggest an HS code.");
+        throw new Error(getUserFacingApiError(data, "Unable to suggest an HS code."));
+      }
+
+      if (!data?.result) {
+        throw new Error("Unable to suggest an HS code.");
       }
 
       setResult(data.result);

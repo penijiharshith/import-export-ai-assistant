@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, WandSparkles } from "lucide-react";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function GenerateDraftsButton() {
   const router = useRouter();
@@ -22,22 +23,23 @@ export function GenerateDraftsButton() {
       const response = await fetch("/api/ai/generate-drafts", {
         method: "POST",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as {
+        processed?: number;
+        inserted?: number;
+        skipped?: number;
+        errors?: Array<{ message?: string }>;
+      } | null;
 
       if (!response.ok) {
-        const errorMessage = Array.isArray(data.errors)
-          ? data.errors.map((item: { message?: string }) => item.message).filter(Boolean).join(" ")
-          : null;
-
-        throw new Error(errorMessage || data.message || data.error || "Unable to generate drafts.");
+        throw new Error(getUserFacingApiError(data, "Unable to generate drafts."));
       }
 
-      const successMessage = `Processed ${data.processed ?? 0} emails. Inserted ${data.inserted ?? 0} drafts. Skipped ${data.skipped ?? 0}.`;
+      const successMessage = `Processed ${data?.processed ?? 0} emails. Inserted ${data?.inserted ?? 0} drafts. Skipped ${data?.skipped ?? 0}.`;
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
 
-      if (Array.isArray(data.errors) && data.errors.length) {
-        const errorMessage = data.errors.map((item: { message?: string }) => item.message).filter(Boolean).join(" ");
+      if (Array.isArray(data?.errors) && data.errors.length) {
+        const errorMessage = "Some drafts could not be generated. Please try again.";
         setError(errorMessage);
         setToast({ type: "error", message: errorMessage });
       }

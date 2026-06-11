@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { suggestHSCode } from "@/lib/ai/suggest-hs-code";
+import {
+  aiConfigurationErrorBody,
+  aiProviderErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 
 type ExtractionRow = {
   product: string | null;
@@ -69,6 +75,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
   }
 
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+  }
+
   const { data, error } = await supabase
     .from("extracted_trade_details")
     .select("product,destination_country,email_messages!inner(user_id)")
@@ -94,10 +104,14 @@ export async function POST(request: NextRequest) {
   try {
     const result = await suggestHSCode(extraction.product as string, extraction.destination_country ?? undefined);
 
-    return jsonWithCookies({ result }, undefined, cookieResponse);
+    return jsonWithCookies({ ok: true, result }, undefined, cookieResponse);
   } catch (suggestionError) {
-    const message = suggestionError instanceof Error ? suggestionError.message : "Unable to suggest an HS code.";
+    console.error("Unable to suggest an HS code.", suggestionError);
 
-    return jsonWithCookies({ error: "hs_code_suggestion_failed", message }, { status: 502 }, cookieResponse);
+    return jsonWithCookies(
+      isAiConfigurationError(suggestionError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
+      { status: isAiConfigurationError(suggestionError) ? 500 : 502 },
+      cookieResponse
+    );
   }
 }

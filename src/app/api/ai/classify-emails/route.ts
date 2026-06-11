@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyEmail } from "@/lib/ai/classify-email";
+import { aiConfigurationErrorBody, isAiConfigured } from "@/lib/ai/groq";
 
 type EmailRow = {
   id: string;
@@ -51,6 +52,10 @@ export async function POST(request: NextRequest) {
 
   if (userError || !user) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
+  }
+
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
   }
 
   const { data: emails, error: emailError } = await supabase
@@ -124,6 +129,7 @@ export async function POST(request: NextRequest) {
 
   return jsonWithCookies(
     {
+      ok: true,
       classified: results.length,
       results,
     },

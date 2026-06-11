@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
+import { getGroqModel, isAiConfigured } from "@/lib/ai/groq";
 
 export function GET() {
   return NextResponse.json({
-    enabled: true,
+    enabled: isAiConfigured(),
     provider: "groq",
-    model: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
+    model: getGroqModel(),
   });
 }

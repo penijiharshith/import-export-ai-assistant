@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FileSearch, Loader2 } from "lucide-react";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function ExtractTradeDetailsButton() {
   const router = useRouter();
@@ -22,13 +23,13 @@ export function ExtractTradeDetailsButton() {
       const response = await fetch("/api/ai/extract-trade-details", {
         method: "POST",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { extracted?: number } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to extract trade details.");
+        throw new Error(getUserFacingApiError(data, "Unable to extract trade details."));
       }
 
-      const successMessage = `Extracted details for ${data.extracted ?? 0} emails.`;
+      const successMessage = `Extracted details for ${data?.extracted ?? 0} emails.`;
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
       startTransition(() => {

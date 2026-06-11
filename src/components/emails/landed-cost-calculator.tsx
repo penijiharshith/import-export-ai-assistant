@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Calculator, Loader2, Sparkles, TriangleAlert } from "lucide-react";
 import type { LandedCostResult } from "@/lib/ai/calculate-landed-cost";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function LandedCostCalculator({ emailId }: { emailId: string }) {
   const [result, setResult] = useState<LandedCostResult | null>(null);
@@ -20,10 +21,14 @@ export function LandedCostCalculator({ emailId }: { emailId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ emailId }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { result?: LandedCostResult } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to calculate landed cost.");
+        throw new Error(getUserFacingApiError(data, "Unable to calculate landed cost."));
+      }
+
+      if (!data?.result) {
+        throw new Error("Unable to calculate landed cost.");
       }
 
       setResult(data.result);

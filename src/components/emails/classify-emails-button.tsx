@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Loader2 } from "lucide-react";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function ClassifyEmailsButton() {
   const router = useRouter();
@@ -22,13 +23,13 @@ export function ClassifyEmailsButton() {
       const response = await fetch("/api/ai/classify-emails", {
         method: "POST",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { classified?: number } | null;
 
       if (!response.ok) {
-        throw new Error(data.message ?? data.error ?? "Unable to classify emails.");
+        throw new Error(getUserFacingApiError(data, "Unable to classify emails."));
       }
 
-      const successMessage = `Classified ${data.classified ?? 0} emails.`;
+      const successMessage = `Classified ${data?.classified ?? 0} emails.`;
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
       startTransition(() => {

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Lightbulb, Loader2 } from "lucide-react";
 import { ToastNotice, type ToastState } from "@/components/toast-notice";
+import { getUserFacingApiError, readJsonResponse } from "@/lib/api-response";
 
 export function SuggestNextActionsButton() {
   const router = useRouter();
@@ -22,14 +23,13 @@ export function SuggestNextActionsButton() {
       const response = await fetch("/api/ai/suggest-actions", {
         method: "POST",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response) as { inserted?: number } | null;
 
       if (!response.ok) {
-        const firstError = Array.isArray(data.errors) && data.errors[0]?.message ? data.errors[0].message : null;
-        throw new Error(firstError ?? data.message ?? data.error ?? "Unable to suggest next actions.");
+        throw new Error(getUserFacingApiError(data, "Unable to suggest next actions."));
       }
 
-      const successMessage = `Generated ${data.inserted ?? 0} action suggestions.`;
+      const successMessage = `Generated ${data?.inserted ?? 0} action suggestions.`;
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
       startTransition(() => {

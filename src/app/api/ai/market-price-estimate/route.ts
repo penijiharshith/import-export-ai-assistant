@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { estimateMarketPrice } from "@/lib/ai/estimate-market-price";
+import {
+  aiConfigurationErrorBody,
+  aiProviderErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 
 type ExtractionRow = {
   product: string | null;
@@ -90,6 +96,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
   }
 
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+  }
+
   const { data, error } = await supabase
     .from("extracted_trade_details")
     .select("product,quantity,price,incoterm,origin_country,destination_country,delivery_date,payment_terms,missing_fields,risk_notes,email_messages!inner(user_id,category)")
@@ -116,10 +126,14 @@ export async function POST(request: NextRequest) {
   try {
     const estimate = await estimateMarketPrice(tradeDetailsRecord(extraction));
 
-    return jsonWithCookies({ estimate }, undefined, cookieResponse);
+    return jsonWithCookies({ ok: true, estimate }, undefined, cookieResponse);
   } catch (estimateError) {
-    const message = estimateError instanceof Error ? estimateError.message : "Unable to estimate market pricing.";
+    console.error("Unable to estimate market pricing.", estimateError);
 
-    return jsonWithCookies({ error: "market_price_estimate_failed", message }, { status: 502 }, cookieResponse);
+    return jsonWithCookies(
+      isAiConfigurationError(estimateError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
+      { status: isAiConfigurationError(estimateError) ? 500 : 502 },
+      cookieResponse
+    );
   }
 }

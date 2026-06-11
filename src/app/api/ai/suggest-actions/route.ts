@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { suggestNextAction, type BusinessRole } from "@/lib/ai/suggest-next-action";
+import {
+  AI_PROVIDER_ERROR_MESSAGE,
+  aiConfigurationErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 
 const TRADE_CATEGORIES = ["buyer_inquiry", "supplier_quote", "shipment_update", "payment", "complaint"];
@@ -76,6 +82,10 @@ export async function POST(request: NextRequest) {
   if (userError || !user) {
     errors.push({ step: "auth", message: userError?.message ?? "User is not authenticated." });
     return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 401 }, cookieResponse);
+  }
+
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
   }
 
   const { data: profile, error: profileError } = await supabase
@@ -173,10 +183,16 @@ export async function POST(request: NextRequest) {
         businessRole,
       });
     } catch (error) {
+      console.error("AI action suggestion failed.", error);
+
+      if (isAiConfigurationError(error)) {
+        return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+      }
+
       errors.push({
         email_id: email.id,
         step: "ai_suggestion",
-        message: error instanceof Error ? error.message : "AI action suggestion failed.",
+        message: AI_PROVIDER_ERROR_MESSAGE,
       });
       continue;
     }
@@ -223,6 +239,7 @@ export async function POST(request: NextRequest) {
 
   return jsonWithCookies(
     {
+      ok: errors.length === 0,
       processed: emailsToProcess.length,
       inserted,
       updated,

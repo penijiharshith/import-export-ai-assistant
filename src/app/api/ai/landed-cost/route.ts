@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { calculateLandedCost } from "@/lib/ai/calculate-landed-cost";
+import {
+  aiConfigurationErrorBody,
+  aiProviderErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 
 type ExtractionRow = {
   product: string | null;
@@ -97,6 +103,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
   }
 
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+  }
+
   const { data, error } = await supabase
     .from("extracted_trade_details")
     .select("product,quantity,price,incoterm,origin_country,destination_country,email_messages!inner(user_id)")
@@ -130,10 +140,14 @@ export async function POST(request: NextRequest) {
       currency: inferCurrency(extraction.price as string),
     });
 
-    return jsonWithCookies({ result }, undefined, cookieResponse);
+    return jsonWithCookies({ ok: true, result }, undefined, cookieResponse);
   } catch (calculationError) {
-    const message = calculationError instanceof Error ? calculationError.message : "Unable to calculate landed cost.";
+    console.error("Unable to calculate landed cost.", calculationError);
 
-    return jsonWithCookies({ error: "landed_cost_calculation_failed", message }, { status: 502 }, cookieResponse);
+    return jsonWithCookies(
+      isAiConfigurationError(calculationError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
+      { status: isAiConfigurationError(calculationError) ? 500 : 502 },
+      cookieResponse
+    );
   }
 }

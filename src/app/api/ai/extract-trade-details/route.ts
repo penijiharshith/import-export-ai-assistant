@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { extractTradeDetails } from "@/lib/ai/extract-trade-details";
+import {
+  aiConfigurationErrorBody,
+  aiProviderErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 
 type EmailRow = {
   id: string;
@@ -101,6 +107,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
   }
 
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+  }
+
   const { data: emails, error: emailError } = await supabase
     .from("email_messages")
     .select("id,sender,subject,body,category")
@@ -145,125 +155,136 @@ export async function POST(request: NextRequest) {
   const emailsToExtract = emailRows.slice(0, 10);
   const results = [];
 
-  for (const email of emailsToExtract) {
-    const details = await extractTradeDetails({
-      subject: email.subject,
-      body: email.body,
-      sender: email.sender,
-      category: email.category,
-    });
-
-    const extractionRow = {
-      product: details.product,
-      quantity: details.quantity,
-      price: details.price,
-      incoterm: details.incoterm,
-      origin_country: details.origin_country,
-      destination_country: details.destination_country,
-      delivery_date: details.delivery_date,
-      payment_terms: details.payment_terms,
-      missing_fields: details.missing_fields,
-      risk_notes: details.risk_notes,
-    };
-    const existingExtractionId = existingExtractionByEmailId.get(email.id);
-    const mutation = existingExtractionId
-      ? supabase
-        .from("extracted_trade_details")
-        .update(extractionRow)
-        .eq("id", existingExtractionId)
-      : supabase.from("extracted_trade_details").insert({
-        email_id: email.id,
-        ...extractionRow,
+  try {
+    for (const email of emailsToExtract) {
+      const details = await extractTradeDetails({
+        subject: email.subject,
+        body: email.body,
+        sender: email.sender,
+        category: email.category,
       });
 
-    const { error: insertError } = await mutation;
-
-    if (insertError) {
-      return jsonWithCookies(
-        {
-          error: "extraction_insert_failed",
-          message: insertError.message,
-          extracted: results.length,
-        },
-        { status: 500 },
-        cookieResponse
-      );
-    }
-
-    if (email.category === "supplier_quote") {
-      const { error: quoteError } = await supabase.from("supplier_quotes").upsert(
-        {
-          user_id: user.id,
+      const extractionRow = {
+        product: details.product,
+        quantity: details.quantity,
+        price: details.price,
+        incoterm: details.incoterm,
+        origin_country: details.origin_country,
+        destination_country: details.destination_country,
+        delivery_date: details.delivery_date,
+        payment_terms: details.payment_terms,
+        missing_fields: details.missing_fields,
+        risk_notes: details.risk_notes,
+      };
+      const existingExtractionId = existingExtractionByEmailId.get(email.id);
+      const mutation = existingExtractionId
+        ? supabase
+          .from("extracted_trade_details")
+          .update(extractionRow)
+          .eq("id", existingExtractionId)
+        : supabase.from("extracted_trade_details").insert({
           email_id: email.id,
-          supplier_name: details.supplier_name ?? email.sender ?? null,
-          product: details.product,
-          unit_price: parseNumericValue(details.price),
-          currency: details.currency ?? "USD",
-          quantity: parseIntegerValue(details.quantity),
-          moq: parseIntegerValue(details.moq),
-          incoterm: details.incoterm,
-          lead_time: details.lead_time ?? details.delivery_date,
-          payment_terms: details.payment_terms,
-          destination_country: details.destination_country,
-          risk_notes: details.risk_notes.join("; ") || null,
-        },
-        { onConflict: "email_id" }
-      );
+          ...extractionRow,
+        });
 
-      if (quoteError) {
+      const { error: insertError } = await mutation;
+
+      if (insertError) {
         return jsonWithCookies(
           {
-            error: "supplier_quote_upsert_failed",
-            message: quoteError.message,
+            error: "extraction_insert_failed",
+            message: insertError.message,
             extracted: results.length,
           },
           { status: 500 },
           cookieResponse
         );
       }
-    }
 
-    const reminder = email.category ? reminderMap[email.category] : null;
-
-    if (reminder) {
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + reminder.days);
-
-      const { error: reminderError } = await supabase.from("follow_ups").upsert(
-        {
-          user_id: user.id,
-          email_id: email.id,
-          reminder_type: reminder.type,
-          note: reminder.note,
-          due_date: dueDate.toISOString(),
-          follow_up_date: dueDate.toISOString(),
-          status: "pending",
-        },
-        { onConflict: "email_id" }
-      );
-
-      if (reminderError) {
-        return jsonWithCookies(
+      if (email.category === "supplier_quote") {
+        const { error: quoteError } = await supabase.from("supplier_quotes").upsert(
           {
-            error: "follow_up_upsert_failed",
-            message: reminderError.message,
-            extracted: results.length,
+            user_id: user.id,
+            email_id: email.id,
+            supplier_name: details.supplier_name ?? email.sender ?? null,
+            product: details.product,
+            unit_price: parseNumericValue(details.price),
+            currency: details.currency ?? "USD",
+            quantity: parseIntegerValue(details.quantity),
+            moq: parseIntegerValue(details.moq),
+            incoterm: details.incoterm,
+            lead_time: details.lead_time ?? details.delivery_date,
+            payment_terms: details.payment_terms,
+            destination_country: details.destination_country,
+            risk_notes: details.risk_notes.join("; ") || null,
           },
-          { status: 500 },
-          cookieResponse
+          { onConflict: "email_id" }
         );
-      }
-    }
 
-    results.push({
-      email_id: email.id,
-      action: existingEmailIds.has(email.id) ? "updated" : "inserted",
-      ...details,
-    });
+        if (quoteError) {
+          return jsonWithCookies(
+            {
+              error: "supplier_quote_upsert_failed",
+              message: quoteError.message,
+              extracted: results.length,
+            },
+            { status: 500 },
+            cookieResponse
+          );
+        }
+      }
+
+      const reminder = email.category ? reminderMap[email.category] : null;
+
+      if (reminder) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + reminder.days);
+
+        const { error: reminderError } = await supabase.from("follow_ups").upsert(
+          {
+            user_id: user.id,
+            email_id: email.id,
+            reminder_type: reminder.type,
+            note: reminder.note,
+            due_date: dueDate.toISOString(),
+            follow_up_date: dueDate.toISOString(),
+            status: "pending",
+          },
+          { onConflict: "email_id" }
+        );
+
+        if (reminderError) {
+          return jsonWithCookies(
+            {
+              error: "follow_up_upsert_failed",
+              message: reminderError.message,
+              extracted: results.length,
+            },
+            { status: 500 },
+            cookieResponse
+          );
+        }
+      }
+
+      results.push({
+        email_id: email.id,
+        action: existingEmailIds.has(email.id) ? "updated" : "inserted",
+        ...details,
+      });
+    }
+  } catch (extractionError) {
+    console.error("Unable to extract trade details.", extractionError);
+
+    return jsonWithCookies(
+      isAiConfigurationError(extractionError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
+      { status: isAiConfigurationError(extractionError) ? 500 : 502 },
+      cookieResponse
+    );
   }
 
   return jsonWithCookies(
     {
+      ok: true,
       extracted: results.length,
       results,
     },

@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { compareSupplierQuotes, type SupplierQuote } from "@/lib/ai/compare-suppliers";
+import {
+  aiConfigurationErrorBody,
+  aiProviderErrorBody,
+  isAiConfigured,
+  isAiConfigurationError,
+} from "@/lib/ai/groq";
 
 function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSource: NextResponse) {
   const response = NextResponse.json(body, init);
@@ -51,6 +57,10 @@ export async function POST(request: NextRequest) {
     return jsonWithCookies({ error: "not_authenticated" }, { status: 401 }, cookieResponse);
   }
 
+  if (!isAiConfigured()) {
+    return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
+  }
+
   const { data, error } = await supabase
     .from("supplier_quotes")
     .select("id,supplier_name,product,unit_price,currency,quantity,moq,incoterm,lead_time,payment_terms,destination_country,risk_notes")
@@ -70,10 +80,14 @@ export async function POST(request: NextRequest) {
   try {
     const comparison = await compareSupplierQuotes(quotes);
 
-    return jsonWithCookies({ comparison }, undefined, cookieResponse);
+    return jsonWithCookies({ ok: true, comparison }, undefined, cookieResponse);
   } catch (comparisonError) {
-    const message = comparisonError instanceof Error ? comparisonError.message : "Unable to compare supplier quotes.";
+    console.error("Unable to compare supplier quotes.", comparisonError);
 
-    return jsonWithCookies({ error: "supplier_comparison_failed", message }, { status: 502 }, cookieResponse);
+    return jsonWithCookies(
+      isAiConfigurationError(comparisonError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
+      { status: isAiConfigurationError(comparisonError) ? 500 : 502 },
+      cookieResponse
+    );
   }
 }
