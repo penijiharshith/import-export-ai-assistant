@@ -29,10 +29,18 @@ create table if not exists public.email_messages (
   subject text,
   body text,
   category text,
+  classification_confidence numeric,
+  classification_reason text,
   status text,
   received_at timestamp with time zone,
   created_at timestamp with time zone default now()
 );
+
+alter table public.email_messages
+add column if not exists classification_confidence numeric;
+
+alter table public.email_messages
+add column if not exists classification_reason text;
 
 create unique index if not exists email_messages_user_gmail_message_id_key
   on public.email_messages(user_id, gmail_message_id);

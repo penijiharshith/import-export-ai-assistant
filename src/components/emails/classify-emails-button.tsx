@@ -23,13 +23,28 @@ export function ClassifyEmailsButton() {
       const response = await fetch("/api/ai/classify-emails", {
         method: "POST",
       });
-      const data = await readJsonResponse(response) as { classified?: number } | null;
+      const data = await readJsonResponse(response) as {
+        classified?: number;
+        tradeEmails?: number;
+        otherEmails?: number;
+        failed?: number;
+        fallbackCount?: number;
+      } | null;
 
       if (!response.ok) {
         throw new Error(getUserFacingApiError(data, "Unable to classify emails."));
       }
 
-      const successMessage = `Classified ${data?.classified ?? 0} emails.`;
+      const classified = data?.classified ?? 0;
+      const tradeEmails = data?.tradeEmails ?? 0;
+      const otherEmails = data?.otherEmails ?? 0;
+      const fallbackCount = data?.fallbackCount ?? 0;
+      const failed = data?.failed ?? 0;
+      const successMessage = [
+        `Classified ${classified} emails: ${tradeEmails} trade emails and ${otherEmails} other emails.`,
+        fallbackCount > 0 ? `${fallbackCount} used safe fallback.` : null,
+        failed > 0 ? `${failed} could not be saved.` : null,
+      ].filter(Boolean).join(" ");
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
       startTransition(() => {

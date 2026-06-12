@@ -1,6 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { suggestNextAction, type BusinessRole } from "@/lib/ai/suggest-next-action";
+import {
+  suggestNextAction,
+  type BusinessRole,
+  type NextActionSuggestion,
+} from "@/lib/ai/suggest-next-action";
 import {
   AI_PROVIDER_ERROR_MESSAGE,
   aiConfigurationErrorBody,
@@ -9,7 +13,9 @@ import {
 } from "@/lib/ai/groq";
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 
-const TRADE_CATEGORIES = ["buyer_inquiry", "supplier_quote", "shipment_update", "payment", "complaint"];
+const TRADE_CATEGORIES = ["buyer_inquiry", "supplier_quote", "shipment_update", "payment_issue", "payment", "complaint"];
+const NO_TRADE_MESSAGE = "No trade-related action is required for these emails.";
+const NEED_MORE_DETAILS_MESSAGE = "More trade details are needed before suggestions can be generated.";
 
 type EmailRow = {
   id: string;
@@ -33,6 +39,10 @@ type SuggestionError = {
   message: string;
 };
 
+type SuggestionResult = NextActionSuggestion & {
+  email_id: string;
+};
+
 function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSource: NextResponse) {
   const response = NextResponse.json(body, init);
 
@@ -47,6 +57,23 @@ function normalizeBusinessRole(value: unknown): BusinessRole {
   return value === "buyer" || value === "seller" || value === "both" ? value : "both";
 }
 
+function hasUsefulTradeDetails(details: Partial<ExtractedTradeDetails> | null | undefined) {
+  if (!details) {
+    return false;
+  }
+
+  return Boolean(
+    details.product
+    || details.quantity
+    || details.price
+    || details.incoterm
+    || details.origin_country
+    || details.destination_country
+    || details.delivery_date
+    || details.payment_terms
+  );
+}
+
 export async function POST(request: NextRequest) {
   const errors: SuggestionError[] = [];
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -54,7 +81,7 @@ export async function POST(request: NextRequest) {
 
   if (!supabaseUrl || !supabaseAnonKey) {
     errors.push({ step: "config", message: "Supabase URL or anon key is missing." });
-    return NextResponse.json({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 });
+    return NextResponse.json({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 });
   }
 
   const cookieResponse = NextResponse.next({
@@ -81,7 +108,7 @@ export async function POST(request: NextRequest) {
 
   if (userError || !user) {
     errors.push({ step: "auth", message: userError?.message ?? "User is not authenticated." });
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 401 }, cookieResponse);
+    return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 401 }, cookieResponse);
   }
 
   if (!isAiConfigured()) {
@@ -96,7 +123,7 @@ export async function POST(request: NextRequest) {
 
   if (profileError) {
     errors.push({ step: "profile_fetch", message: profileError.message });
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 }, cookieResponse);
+    return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 }, cookieResponse);
   }
 
   const businessRole = normalizeBusinessRole(profile?.business_role);
@@ -111,7 +138,7 @@ export async function POST(request: NextRequest) {
 
     if (profileInsertError) {
       errors.push({ step: "profile_upsert", message: profileInsertError.message });
-      return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 }, cookieResponse);
+      return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 }, cookieResponse);
     }
   }
 
@@ -126,13 +153,26 @@ export async function POST(request: NextRequest) {
 
   if (emailError) {
     errors.push({ step: "email_fetch", message: emailError.message });
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 }, cookieResponse);
+    return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 }, cookieResponse);
   }
 
   const emailRows = (emails ?? []) as EmailRow[];
 
   if (emailRows.length === 0) {
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, undefined, cookieResponse);
+    return jsonWithCookies(
+      {
+        ok: true,
+        processed: 0,
+        inserted: 0,
+        updated: 0,
+        skipped: 0,
+        suggestions: [],
+        message: NO_TRADE_MESSAGE,
+        errors,
+      },
+      undefined,
+      cookieResponse
+    );
   }
 
   const emailIds = emailRows.map((email) => email.id);
@@ -152,12 +192,12 @@ export async function POST(request: NextRequest) {
 
   if (extractionResult.error) {
     errors.push({ step: "extraction_fetch", message: extractionResult.error.message });
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 }, cookieResponse);
+    return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 }, cookieResponse);
   }
 
   if (existingSuggestionResult.error) {
     errors.push({ step: "existing_suggestion_fetch", message: existingSuggestionResult.error.message });
-    return jsonWithCookies({ processed: 0, inserted: 0, skipped: 0, errors }, { status: 500 }, cookieResponse);
+    return jsonWithCookies({ ok: false, processed: 0, inserted: 0, updated: 0, skipped: 0, suggestions: [], errors }, { status: 500 }, cookieResponse);
   }
 
   const extractionByEmailId = new Map(
@@ -169,9 +209,17 @@ export async function POST(request: NextRequest) {
   const emailsToProcess = emailRows.slice(0, 10);
   let inserted = 0;
   let updated = 0;
+  let skippedForDetails = 0;
+  const suggestions: SuggestionResult[] = [];
 
   for (const email of emailsToProcess) {
     let suggestion;
+    const extractedTradeDetails = extractionByEmailId.get(email.id) ?? null;
+
+    if (!hasUsefulTradeDetails(extractedTradeDetails)) {
+      skippedForDetails += 1;
+      continue;
+    }
 
     try {
       suggestion = await suggestNextAction({
@@ -179,11 +227,14 @@ export async function POST(request: NextRequest) {
         emailBody: email.body,
         emailFrom: email.sender,
         category: email.category,
-        extractedTradeDetails: extractionByEmailId.get(email.id) ?? null,
+        extractedTradeDetails,
         businessRole,
       });
     } catch (error) {
-      console.error("AI action suggestion failed.", error);
+      console.error("ai_suggest_action_failed", {
+        route: "suggest-actions",
+        message: error instanceof Error ? error.message.slice(0, 120) : "Unknown AI suggestion failure.",
+      });
 
       if (isAiConfigurationError(error)) {
         return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
@@ -233,9 +284,17 @@ export async function POST(request: NextRequest) {
     } else {
       inserted += 1;
     }
+
+    suggestions.push({
+      email_id: email.id,
+      ...suggestion,
+    });
   }
 
-  const skipped = Math.max(emailRows.length - emailsToProcess.length, 0);
+  const skipped = Math.max(emailRows.length - emailsToProcess.length, 0) + skippedForDetails;
+  const message = suggestions.length > 0
+    ? `Generated ${suggestions.length} action suggestions.`
+    : NEED_MORE_DETAILS_MESSAGE;
 
   return jsonWithCookies(
     {
@@ -244,9 +303,11 @@ export async function POST(request: NextRequest) {
       inserted,
       updated,
       skipped,
+      suggestions,
+      message,
       errors,
     },
-    errors.length ? { status: inserted > 0 ? 207 : 500 } : undefined,
+    errors.length ? { status: suggestions.length > 0 ? 207 : 502 } : undefined,
     cookieResponse
   );
 }

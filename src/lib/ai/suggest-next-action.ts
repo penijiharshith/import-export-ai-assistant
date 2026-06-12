@@ -1,5 +1,6 @@
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 import { chat } from "@/lib/ai/groq";
+import { parseJsonObject } from "@/lib/ai/json";
 import { TRADE_COPILOT_SYSTEM_PROMPT } from "@/lib/ai/trade-copilot-system-prompt";
 
 export type BusinessRole = "buyer" | "seller" | "both";
@@ -140,7 +141,7 @@ export async function suggestNextAction({
     { temperature: 0.2, json: true }
   );
 
-  const suggestion = normalizeSuggestion(JSON.parse(content));
+  const suggestion = normalizeSuggestion(parseJsonObject(content));
 
   if (category === "buyer_inquiry" && hasCompleteBuyerInquiry(extractedTradeDetails)) {
     return {

@@ -32,6 +32,11 @@ const reminderMap: Record<string, { note: string; days: number; type: string }> 
     note: "Review supplier quote before it expires",
     days: 5,
   },
+  payment_issue: {
+    type: "payment_pending",
+    note: "Confirm payment has been received or follow up",
+    days: 2,
+  },
   payment: {
     type: "payment_pending",
     note: "Confirm payment has been received or follow up",

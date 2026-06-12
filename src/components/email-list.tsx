@@ -6,6 +6,7 @@ import type { TradeEmail } from "@/lib/mock-data";
 const categoryTone: Record<string, string> = {
   buyer_inquiry: "bg-teal-50 text-teal-700",
   supplier_quote: "bg-blue-50 text-blue-700",
+  payment_issue: "bg-emerald-50 text-emerald-700",
   payment: "bg-emerald-50 text-emerald-700",
   shipment: "bg-amber-50 text-amber-700",
   shipment_update: "bg-amber-50 text-amber-700",
@@ -17,6 +18,7 @@ const categoryTone: Record<string, string> = {
 const categoryRail: Record<string, string> = {
   buyer_inquiry: "border-l-teal-500",
   supplier_quote: "border-l-blue-500",
+  payment_issue: "border-l-emerald-500",
   payment: "border-l-emerald-500",
   shipment: "border-l-amber-500",
   shipment_update: "border-l-amber-500",

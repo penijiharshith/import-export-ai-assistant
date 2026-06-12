@@ -70,6 +70,7 @@ export const TRADE_EMAIL_CATEGORIES = [
   "buyer_inquiry",
   "supplier_quote",
   "shipment_update",
+  "payment_issue",
   "payment",
   "complaint",
 ] as const;

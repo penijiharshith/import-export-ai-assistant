@@ -23,13 +23,22 @@ export function SuggestNextActionsButton() {
       const response = await fetch("/api/ai/suggest-actions", {
         method: "POST",
       });
-      const data = await readJsonResponse(response) as { inserted?: number } | null;
+      const data = await readJsonResponse(response) as {
+        inserted?: number;
+        updated?: number;
+        processed?: number;
+        suggestions?: unknown[];
+        message?: string;
+      } | null;
 
       if (!response.ok) {
         throw new Error(getUserFacingApiError(data, "Unable to suggest next actions."));
       }
 
-      const successMessage = `Generated ${data?.inserted ?? 0} action suggestions.`;
+      const changedSuggestions = (data?.inserted ?? 0) + (data?.updated ?? 0);
+      const successMessage = changedSuggestions > 0
+        ? `Suggested next actions for ${data?.processed ?? changedSuggestions} trade emails.`
+        : data?.message ?? "No trade-related action is required.";
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
       startTransition(() => {
