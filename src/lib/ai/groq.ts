@@ -49,8 +49,9 @@ export function aiProviderErrorBody() {
 export function aiRateLimitErrorBody(retryAfterSeconds: number | null) {
   return {
     ok: false,
+    code: "AI_RATE_LIMITED",
     rateLimited: true,
-    retryAfterSeconds,
+    ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
     error: retryAfterSeconds
       ? `AI quota reached. Try again in about ${formatRetryMinutes(retryAfterSeconds)}.`
       : AI_RATE_LIMIT_ERROR_MESSAGE,

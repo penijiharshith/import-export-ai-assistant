@@ -4,8 +4,10 @@ import { calculateLandedCost } from "@/lib/ai/calculate-landed-cost";
 import {
   aiConfigurationErrorBody,
   aiProviderErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 
 type ExtractionRow = {
@@ -142,7 +144,23 @@ export async function POST(request: NextRequest) {
 
     return jsonWithCookies({ ok: true, result }, undefined, cookieResponse);
   } catch (calculationError) {
-    console.error("Unable to calculate landed cost.", calculationError);
+    if (isAiRateLimitError(calculationError)) {
+      console.warn("ai_landed_cost_rate_limited", {
+        route: "landed-cost",
+        retryAfterSeconds: calculationError.retryAfterSeconds,
+      });
+
+      return jsonWithCookies(
+        aiRateLimitErrorBody(calculationError.retryAfterSeconds),
+        { status: 429 },
+        cookieResponse
+      );
+    }
+
+    console.error("ai_landed_cost_failed", {
+      route: "landed-cost",
+      message: calculationError instanceof Error ? calculationError.message.slice(0, 120) : "Unknown landed cost failure.",
+    });
 
     return jsonWithCookies(
       isAiConfigurationError(calculationError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),

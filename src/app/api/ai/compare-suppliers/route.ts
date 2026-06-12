@@ -4,8 +4,10 @@ import { compareSupplierQuotes, type SupplierQuote } from "@/lib/ai/compare-supp
 import {
   aiConfigurationErrorBody,
   aiProviderErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 
 function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSource: NextResponse) {
@@ -82,7 +84,23 @@ export async function POST(request: NextRequest) {
 
     return jsonWithCookies({ ok: true, comparison }, undefined, cookieResponse);
   } catch (comparisonError) {
-    console.error("Unable to compare supplier quotes.", comparisonError);
+    if (isAiRateLimitError(comparisonError)) {
+      console.warn("ai_compare_suppliers_rate_limited", {
+        route: "compare-suppliers",
+        retryAfterSeconds: comparisonError.retryAfterSeconds,
+      });
+
+      return jsonWithCookies(
+        aiRateLimitErrorBody(comparisonError.retryAfterSeconds),
+        { status: 429 },
+        cookieResponse
+      );
+    }
+
+    console.error("ai_compare_suppliers_failed", {
+      route: "compare-suppliers",
+      message: comparisonError instanceof Error ? comparisonError.message.slice(0, 120) : "Unknown comparison failure.",
+    });
 
     return jsonWithCookies(
       isAiConfigurationError(comparisonError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),

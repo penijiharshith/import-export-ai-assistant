@@ -26,7 +26,10 @@ export function GenerateDraftsButton() {
       const data = await readJsonResponse(response) as {
         processed?: number;
         inserted?: number;
+        generated?: number;
         skipped?: number;
+        partial?: boolean;
+        message?: string;
         errors?: Array<{ message?: string }>;
       } | null;
 
@@ -34,11 +37,12 @@ export function GenerateDraftsButton() {
         throw new Error(getUserFacingApiError(data, "Unable to generate drafts."));
       }
 
-      const successMessage = `Processed ${data?.processed ?? 0} emails. Inserted ${data?.inserted ?? 0} drafts. Skipped ${data?.skipped ?? 0}.`;
+      const successMessage = data?.message
+        ?? `Processed ${data?.processed ?? 0} emails. Inserted ${data?.inserted ?? data?.generated ?? 0} drafts. Skipped ${data?.skipped ?? 0}.`;
       setMessage(successMessage);
       setToast({ type: "success", message: successMessage });
 
-      if (Array.isArray(data?.errors) && data.errors.length) {
+      if (!data?.partial && Array.isArray(data?.errors) && data.errors.length) {
         const errorMessage = "Some drafts could not be generated. Please try again.";
         setError(errorMessage);
         setToast({ type: "error", message: errorMessage });

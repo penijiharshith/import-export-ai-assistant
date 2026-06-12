@@ -4,8 +4,11 @@ import { generateReplyDraft } from "@/lib/ai/generate-reply-draft";
 import {
   AI_PROVIDER_ERROR_MESSAGE,
   aiConfigurationErrorBody,
+  aiRateLimitErrorBody,
+  formatRetryMinutes,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 
@@ -44,6 +47,14 @@ function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSo
   });
 
   return response;
+}
+
+function getPartialRateLimitMessage(inserted: number, unprocessed: number, retryAfterSeconds: number | null) {
+  const retryText = retryAfterSeconds
+    ? ` Try again in about ${formatRetryMinutes(retryAfterSeconds)}.`
+    : " Try again later.";
+
+  return `Generated ${inserted} ${inserted === 1 ? "draft" : "drafts"}. AI quota reached before ${unprocessed} remaining ${unprocessed === 1 ? "email was" : "emails were"} processed.${retryText}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -104,7 +115,19 @@ export async function POST(request: NextRequest) {
   const emailRows = (emails ?? []) as EmailWithExtractionRow[];
 
   if (emailRows.length === 0) {
-    return jsonWithCookies({ processed: 0, skipped: 0, inserted: 0, errors }, undefined, cookieResponse);
+    return jsonWithCookies(
+      {
+        ok: true,
+        processed: 0,
+        skipped: 0,
+        inserted: 0,
+        generated: 0,
+        message: "No new draft replies are needed.",
+        errors,
+      },
+      undefined,
+      cookieResponse
+    );
   }
 
   const emailIds = emailRows.map((email) => email.id);
@@ -152,6 +175,22 @@ export async function POST(request: NextRequest) {
     skippedEmails.push({ email_id: email.id, reason: "max_batch_limit_reached" });
   });
 
+  if (emailsToDraft.length === 0) {
+    return jsonWithCookies(
+      {
+        ok: true,
+        processed: 0,
+        skipped: skippedEmails.length,
+        inserted: 0,
+        generated: 0,
+        message: "No new draft replies are needed.",
+        errors,
+      },
+      undefined,
+      cookieResponse
+    );
+  }
+
   let inserted = 0;
 
   for (const email of emailsToDraft) {
@@ -173,11 +212,48 @@ export async function POST(request: NextRequest) {
         extractedTradeDetails: extraction,
       });
     } catch (error) {
-      console.error("Draft generation failed.", error);
-
       if (isAiConfigurationError(error)) {
         return jsonWithCookies(aiConfigurationErrorBody(), { status: 500 }, cookieResponse);
       }
+
+      if (isAiRateLimitError(error)) {
+        const retryAfterSeconds = error.retryAfterSeconds;
+        const unprocessed = emailsToDraft.length - inserted;
+
+        console.warn("ai_generate_drafts_rate_limited", {
+          route: "generate-drafts",
+          retryAfterSeconds,
+          processed: inserted,
+          unprocessed,
+        });
+
+        if (inserted > 0) {
+          return jsonWithCookies(
+            {
+              ok: true,
+              partial: true,
+              processed: inserted,
+              skipped: skippedEmails.length,
+              inserted,
+              generated: inserted,
+              unprocessed,
+              rateLimited: true,
+              ...(retryAfterSeconds ? { retryAfterSeconds } : {}),
+              message: getPartialRateLimitMessage(inserted, unprocessed, retryAfterSeconds),
+              errors,
+            },
+            undefined,
+            cookieResponse
+          );
+        }
+
+        return jsonWithCookies(aiRateLimitErrorBody(retryAfterSeconds), { status: 429 }, cookieResponse);
+      }
+
+      console.error("ai_generate_drafts_failed", {
+        route: "generate-drafts",
+        message: error instanceof Error ? error.message.slice(0, 120) : "Unknown draft generation failure.",
+      });
 
       const message = AI_PROVIDER_ERROR_MESSAGE;
       errors.push({ email_id: email.id, step: "ai_generation", message });
@@ -219,6 +295,8 @@ export async function POST(request: NextRequest) {
       processed: emailsToDraft.length,
       skipped: skippedEmails.length,
       inserted,
+      generated: inserted,
+      message: inserted > 0 ? `Generated ${inserted} ${inserted === 1 ? "draft" : "drafts"}.` : "No new draft replies are needed.",
       errors,
     },
     errors.length ? { status: inserted > 0 ? 207 : 500 } : undefined,

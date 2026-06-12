@@ -4,8 +4,10 @@ import { suggestHSCode } from "@/lib/ai/suggest-hs-code";
 import {
   aiConfigurationErrorBody,
   aiProviderErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 
 type ExtractionRow = {
@@ -106,7 +108,23 @@ export async function POST(request: NextRequest) {
 
     return jsonWithCookies({ ok: true, result }, undefined, cookieResponse);
   } catch (suggestionError) {
-    console.error("Unable to suggest an HS code.", suggestionError);
+    if (isAiRateLimitError(suggestionError)) {
+      console.warn("ai_hs_code_rate_limited", {
+        route: "hs-code",
+        retryAfterSeconds: suggestionError.retryAfterSeconds,
+      });
+
+      return jsonWithCookies(
+        aiRateLimitErrorBody(suggestionError.retryAfterSeconds),
+        { status: 429 },
+        cookieResponse
+      );
+    }
+
+    console.error("ai_hs_code_failed", {
+      route: "hs-code",
+      message: suggestionError instanceof Error ? suggestionError.message.slice(0, 120) : "Unknown HS code failure.",
+    });
 
     return jsonWithCookies(
       isAiConfigurationError(suggestionError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),

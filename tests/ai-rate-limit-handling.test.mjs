@@ -17,6 +17,7 @@ test("Groq rate limits are typed, retry-aware, and do not use SDK auto-retries",
   assert.match(groq, /RateLimitError/);
   assert.match(groq, /class AiRateLimitError extends Error/);
   assert.match(groq, /readonly retryAfterSeconds/);
+  assert.match(groq, /code:\s*"AI_RATE_LIMITED"/);
   assert.match(groq, /retry-after-ms/);
   assert.match(groq, /retry-after/);
   assert.match(groq, /new Groq\(\{ apiKey, maxRetries: 0, timeout: 30_000 \}\)/);
@@ -37,10 +38,15 @@ test("classification stops immediately on 429 and preserves unprocessed email ca
   assert.doesNotMatch(route, /category:\s*"other" as const/);
 });
 
-test("extract and suggest return sanitized quota messages without raw provider details", () => {
+test("all remaining AI routes return sanitized quota messages without raw provider details", () => {
   for (const routePath of [
     "src/app/api/ai/extract-trade-details/route.ts",
     "src/app/api/ai/suggest-actions/route.ts",
+    "src/app/api/ai/generate-drafts/route.ts",
+    "src/app/api/ai/hs-code/route.ts",
+    "src/app/api/ai/landed-cost/route.ts",
+    "src/app/api/ai/market-price-estimate/route.ts",
+    "src/app/api/ai/compare-suppliers/route.ts",
   ]) {
     const route = source(routePath);
 
@@ -51,4 +57,27 @@ test("extract and suggest return sanitized quota messages without raw provider d
     assert.doesNotMatch(route, /tokens-per-day/i);
     assert.doesNotMatch(route, /provider.*headers/i);
   }
+});
+
+test("draft generation handles no-op and partial quota results safely", () => {
+  const route = source("src/app/api/ai/generate-drafts/route.ts");
+  const button = source("src/components/drafts/generate-drafts-button.tsx");
+
+  assert.match(route, /"No new draft replies are needed\."/);
+  assert.match(route, /existingEmailIds\.has\(email\.id\)/);
+  assert.match(route, /reason: "draft_already_exists"/);
+  assert.match(route, /isAiRateLimitError\(error\)/);
+  assert.match(route, /partial:\s*true/);
+  assert.match(route, /rateLimited:\s*true/);
+  assert.match(route, /unprocessed/);
+  assert.match(route, /inserted > 0/);
+  assert.match(route, /return jsonWithCookies\(aiRateLimitErrorBody\(retryAfterSeconds\), \{ status: 429 \}, cookieResponse\)/);
+  assert.match(route, /ai_generate_drafts_rate_limited/);
+  assert.doesNotMatch(route, /Draft generation failed\./);
+
+  assert.match(button, /data\?\.message/);
+  assert.match(button, /!data\?\.partial/);
+  assert.match(button, /finally\s*{\s*setIsGenerating\(false\)/);
+  assert.match(button, /readJsonResponse\(response\)/);
+  assert.doesNotMatch(button, /await response\.json\(\)/);
 });

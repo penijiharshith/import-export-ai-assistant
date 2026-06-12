@@ -4,8 +4,10 @@ import { estimateMarketPrice } from "@/lib/ai/estimate-market-price";
 import {
   aiConfigurationErrorBody,
   aiProviderErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 
 type ExtractionRow = {
@@ -128,7 +130,23 @@ export async function POST(request: NextRequest) {
 
     return jsonWithCookies({ ok: true, estimate }, undefined, cookieResponse);
   } catch (estimateError) {
-    console.error("Unable to estimate market pricing.", estimateError);
+    if (isAiRateLimitError(estimateError)) {
+      console.warn("ai_market_price_rate_limited", {
+        route: "market-price-estimate",
+        retryAfterSeconds: estimateError.retryAfterSeconds,
+      });
+
+      return jsonWithCookies(
+        aiRateLimitErrorBody(estimateError.retryAfterSeconds),
+        { status: 429 },
+        cookieResponse
+      );
+    }
+
+    console.error("ai_market_price_failed", {
+      route: "market-price-estimate",
+      message: estimateError instanceof Error ? estimateError.message.slice(0, 120) : "Unknown market price failure.",
+    });
 
     return jsonWithCookies(
       isAiConfigurationError(estimateError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),
