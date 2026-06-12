@@ -1,7 +1,14 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const protectedRoutePrefixes = ["/dashboard", "/emails", "/drafts", "/settings"];
+const protectedRoutePrefixes = [
+  "/dashboard",
+  "/emails",
+  "/drafts",
+  "/settings",
+  "/supplier-comparison",
+  "/follow-ups",
+];
 const authRoutePrefixes = ["/login"];
 
 function isProtectedRoute(pathname: string) {
@@ -85,5 +92,13 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/emails/:path*", "/drafts/:path*", "/settings/:path*"],
+  matcher: [
+    "/login",
+    "/dashboard/:path*",
+    "/emails/:path*",
+    "/drafts/:path*",
+    "/settings/:path*",
+    "/supplier-comparison/:path*",
+    "/follow-ups/:path*",
+  ],
 };
