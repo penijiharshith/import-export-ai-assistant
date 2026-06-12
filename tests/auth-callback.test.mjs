@@ -15,8 +15,7 @@ test("OAuth callback exchanges the code and persists Supabase cookies on the red
   const callback = source("src/app/auth/callback/route.ts");
 
   assert.match(callback, /exchangeCodeForSession\(code\)/);
-  assert.match(callback, /request\.cookies\.set\(name,\s*value\)/);
-  assert.match(callback, /response\.cookies\.set\(name,\s*value,\s*options\)/);
+  assert.match(callback, /createSupabaseServerClient\(\)/);
   assert.match(callback, /error\s*\|\|\s*!data\.session/);
   assert.match(callback, /NextResponse\.redirect\(redirectUrl\)/);
 });
@@ -41,8 +40,10 @@ test("OAuth callback failure redirects safely to login without raw errors", () =
   const callback = source("src/app/auth/callback/route.ts");
 
   assert.match(callback, /\/login\?error=oauth_callback_failed/);
+  assert.match(callback, /console\.warn\("oauth_callback_exchange_failed",\s*getSafeAuthErrorDetails\(error\)\)/);
   assert.doesNotMatch(callback, /error\.message/);
   assert.doesNotMatch(callback, /console\.(log|error)/);
+  assert.doesNotMatch(callback, /request\.url.*console|requestUrl.*console|code.*console|cookies.*console/i);
 });
 
 test("middleware preserves refreshed auth cookies when it redirects", () => {
@@ -87,8 +88,29 @@ test("login button sends OAuth users back through callback with dashboard next",
 test("root page redirects authenticated users to dashboard", () => {
   const page = source("src/app/page.tsx");
 
+  assert.match(page, /createSupabaseServerClient\(\)/);
   assert.match(page, /supabase\.auth\.getUser\(\)/);
   assert.match(page, /if \(\s*user\s*\)/);
   assert.match(page, /redirect\("\/dashboard"\)/);
   assert.match(page, /redirect\("\/login"\)/);
+});
+
+test("browser helper uses Supabase SSR createBrowserClient", () => {
+  const helper = source("src/lib/supabase.ts");
+
+  assert.match(helper, /import \{ createBrowserClient \} from "@supabase\/ssr"/);
+  assert.match(helper, /createBrowserClient\(supabaseUrl!,\s*supabaseAnonKey!\)/);
+  assert.doesNotMatch(helper, /from "@supabase\/supabase-js"/);
+});
+
+test("server helper uses Supabase SSR createServerClient with cookie bridge", () => {
+  const helper = source("src/lib/supabase-server.ts");
+
+  assert.match(helper, /import \{ createServerClient \} from "@supabase\/ssr"/);
+  assert.match(helper, /import \{ cookies \} from "next\/headers"/);
+  assert.match(helper, /const cookieStore = await cookies\(\)/);
+  assert.match(helper, /createServerClient\(supabaseUrl,\s*supabaseAnonKey/);
+  assert.match(helper, /getAll\(\)\s*{\s*return cookieStore\.getAll\(\)/);
+  assert.match(helper, /setAll\(cookiesToSet\)/);
+  assert.match(helper, /cookieStore\.set\(name,\s*value,\s*options\)/);
 });

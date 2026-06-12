@@ -1,6 +1,6 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { GMAIL_PROVIDER_TOKEN_COOKIE } from "@/lib/gmail";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 
 const OAUTH_CALLBACK_ERROR_PATH = "/login?error=oauth_callback_failed";
 
@@ -10,6 +10,15 @@ function getSafeNextPath(nextPath: string) {
   }
 
   return "/dashboard";
+}
+
+function getSafeAuthErrorDetails(error: unknown) {
+  const candidate = error && typeof error === "object" ? error as { message?: unknown; code?: unknown } : {};
+
+  return {
+    message: typeof candidate.message === "string" ? candidate.message.slice(0, 180) : "OAuth code exchange failed.",
+    code: typeof candidate.code === "string" ? candidate.code.slice(0, 80) : undefined,
+  };
 }
 
 export async function GET(request: NextRequest) {
@@ -25,28 +34,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(OAUTH_CALLBACK_ERROR_PATH, request.url));
   }
 
-  let response = NextResponse.redirect(redirectUrl);
-
-  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => {
-          request.cookies.set(name, value);
-        });
-        response = NextResponse.redirect(redirectUrl);
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
-  });
+  const response = NextResponse.redirect(redirectUrl);
+  const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.session) {
+    if (error) {
+      console.warn("oauth_callback_exchange_failed", getSafeAuthErrorDetails(error));
+    }
+
     return NextResponse.redirect(new URL(OAUTH_CALLBACK_ERROR_PATH, request.url));
   }
 
