@@ -1,13 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyEmail, type EmailCategory } from "@/lib/ai/classify-email";
-import { aiConfigurationErrorBody, isAiConfigured } from "@/lib/ai/groq";
+import {
+  aiConfigurationErrorBody,
+  formatRetryMinutes,
+  isAiConfigured,
+  isAiRateLimitError,
+} from "@/lib/ai/groq";
 
 type EmailRow = {
   id: string;
   sender: string | null;
   subject: string | null;
   body: string | null;
+  category: string | null;
+  classification_status: string | null;
 };
 
 type ClassificationResult = {
@@ -33,6 +40,14 @@ function jsonWithCookies(body: unknown, init: ResponseInit | undefined, cookieSo
   });
 
   return response;
+}
+
+function getRateLimitMessage(unprocessed: number, retryAfterSeconds: number | null) {
+  const retryText = retryAfterSeconds
+    ? ` Try again in about ${formatRetryMinutes(retryAfterSeconds)}.`
+    : " Try again later.";
+
+  return `AI quota reached. ${unprocessed} ${unprocessed === 1 ? "email remains" : "emails remain"} unprocessed.${retryText}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -75,9 +90,10 @@ export async function POST(request: NextRequest) {
 
   const { data: emails, error: emailError } = await supabase
     .from("email_messages")
-    .select("id,sender,subject,body")
+    .select("id,sender,subject,body,category,classification_status")
     .eq("user_id", user.id)
     .neq("status", "archived")
+    .or("category.is.null,category.eq.unclassified,classification_status.eq.retry")
     .order("received_at", { ascending: false })
     .limit(100);
 
@@ -97,7 +113,6 @@ export async function POST(request: NextRequest) {
   const emailRows = (emails ?? []) as EmailRow[];
   const results: ClassificationResult[] = [];
   let failed = 0;
-  let fallbackCount = 0;
 
   for (const email of emailRows) {
     let classification;
@@ -109,17 +124,57 @@ export async function POST(request: NextRequest) {
         sender: email.sender,
       });
     } catch (classificationError) {
-      fallbackCount += 1;
+      if (isAiRateLimitError(classificationError)) {
+        const retryAfterSeconds = classificationError.retryAfterSeconds;
+        const unprocessed = emailRows.length - results.length;
+        const message = getRateLimitMessage(unprocessed, retryAfterSeconds);
+
+        await supabase
+          .from("email_messages")
+          .update({ classification_status: "retry" })
+          .eq("id", email.id)
+          .eq("user_id", user.id);
+
+        console.warn("ai_classify_rate_limited", {
+          route: "classify-emails",
+          retryAfterSeconds,
+          unprocessed,
+        });
+
+        const tradeEmails = results.filter((result) => TRADE_CATEGORIES.includes(result.category)).length;
+        const otherEmails = results.filter((result) => result.category === "other").length;
+
+        return jsonWithCookies(
+          {
+            ok: true,
+            partial: true,
+            classified: results.length,
+            tradeEmails,
+            otherEmails,
+            unprocessed,
+            failed,
+            rateLimited: true,
+            retryAfterSeconds,
+            message,
+            results,
+          },
+          undefined,
+          cookieResponse
+        );
+      }
+
+      failed += 1;
+      await supabase
+        .from("email_messages")
+        .update({ classification_status: "retry" })
+        .eq("id", email.id)
+        .eq("user_id", user.id);
       console.warn("ai_classify_email_failed", {
         route: "classify-emails",
         message: classificationError instanceof Error ? classificationError.message.slice(0, 120) : "Unknown AI classification failure.",
-        failedEmailCount: fallbackCount,
+        failedEmailCount: failed,
       });
-      classification = {
-        category: "other" as const,
-        confidence: 0,
-        reason: "Unable to classify confidently.",
-      };
+      continue;
     }
 
     const { error: updateError } = await supabase
@@ -128,6 +183,7 @@ export async function POST(request: NextRequest) {
         category: classification.category,
         classification_confidence: classification.confidence,
         classification_reason: classification.reason,
+        classification_status: "classified",
         status: "new",
       })
       .eq("id", email.id)
@@ -160,7 +216,10 @@ export async function POST(request: NextRequest) {
       tradeEmails,
       otherEmails,
       failed,
-      fallbackCount,
+      fallbackCount: 0,
+      partial: false,
+      rateLimited: false,
+      unprocessed: 0,
       results,
     },
     undefined,

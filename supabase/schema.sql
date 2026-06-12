@@ -31,6 +31,7 @@ create table if not exists public.email_messages (
   category text,
   classification_confidence numeric,
   classification_reason text,
+  classification_status text,
   status text,
   received_at timestamp with time zone,
   created_at timestamp with time zone default now()
@@ -41,6 +42,22 @@ add column if not exists classification_confidence numeric;
 
 alter table public.email_messages
 add column if not exists classification_reason text;
+
+alter table public.email_messages
+add column if not exists classification_status text;
+
+alter table public.email_messages
+drop constraint if exists email_messages_classification_status_check;
+
+alter table public.email_messages
+add constraint email_messages_classification_status_check
+check (
+  classification_status is null
+  or classification_status in ('classified', 'retry', 'unclassified')
+);
+
+comment on column public.email_messages.classification_status is
+'AI classification lifecycle status: classified, retry, or unclassified.';
 
 create unique index if not exists email_messages_user_gmail_message_id_key
   on public.email_messages(user_id, gmail_message_id);

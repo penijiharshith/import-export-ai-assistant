@@ -1,4 +1,4 @@
-import { chat } from "@/lib/ai/groq";
+import { AiProviderError, chat } from "@/lib/ai/groq";
 import { parseJsonObject } from "@/lib/ai/json";
 
 export const EMAIL_CATEGORIES = [
@@ -42,7 +42,16 @@ export function normalizeEmailCategory(category: unknown): EmailCategory {
   return isEmailCategory(normalized) ? normalized : "other";
 }
 
-function normalizeClassification(value: unknown): EmailClassification {
+const MAX_BODY_SNIPPET_LENGTH = 700;
+
+function normalizeEmailSnippet(value: string | null) {
+  return (value ?? "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_BODY_SNIPPET_LENGTH);
+}
+
+function normalizeClassification(value: unknown): EmailClassification | null {
   const fallback: EmailClassification = {
     category: "other",
     confidence: 0,
@@ -50,10 +59,14 @@ function normalizeClassification(value: unknown): EmailClassification {
   };
 
   if (!value || typeof value !== "object") {
-    return fallback;
+    return null;
   }
 
   const candidate = value as Partial<EmailClassification>;
+  if (typeof candidate.category !== "string") {
+    return null;
+  }
+
   const category = normalizeEmailCategory(candidate.category);
   const confidence = typeof candidate.confidence === "number"
     ? Math.min(1, Math.max(0, candidate.confidence))
@@ -69,7 +82,7 @@ function normalizeClassification(value: unknown): EmailClassification {
   };
 }
 
-export function parseClassification(outputText: string): EmailClassification {
+export function parseClassification(outputText: string): EmailClassification | null {
   return normalizeClassification(parseJsonObject(outputText));
 }
 
@@ -84,7 +97,7 @@ export async function classifyEmail({
         role: "system",
         content:
           [
-            "Classify import-export trade emails. Return only valid JSON with exactly these keys: category, confidence, reason.",
+            "Classify import-export trade email summaries. Return only valid JSON with exactly these keys: category, confidence, reason.",
             "Allowed categories: buyer_inquiry, supplier_quote, shipment_update, payment_issue, complaint, other.",
             "confidence must be a number from 0 to 1.",
             "",
@@ -114,12 +127,18 @@ export async function classifyEmail({
         content: JSON.stringify({
           sender: sender ?? "",
           subject: subject ?? "",
-          body: body ?? "",
+          snippet: normalizeEmailSnippet(body),
         }),
       },
     ],
     { temperature: 0.1, json: true }
   );
 
-  return parseClassification(outputText);
+  const classification = parseClassification(outputText);
+
+  if (!classification) {
+    throw new AiProviderError("AI provider returned invalid classification JSON.");
+  }
+
+  return classification;
 }

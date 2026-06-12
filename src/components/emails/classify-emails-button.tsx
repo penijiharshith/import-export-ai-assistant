@@ -29,10 +29,12 @@ export function ClassifyEmailsButton() {
         otherEmails?: number;
         failed?: number;
         fallbackCount?: number;
+        partial?: boolean;
+        message?: string;
       } | null;
 
       if (!response.ok) {
-        throw new Error(getUserFacingApiError(data, "Unable to classify emails."));
+        throw new Error(getUserFacingApiError(data, "Unable to classify emails. Please try again later."));
       }
 
       const classified = data?.classified ?? 0;
@@ -40,7 +42,7 @@ export function ClassifyEmailsButton() {
       const otherEmails = data?.otherEmails ?? 0;
       const fallbackCount = data?.fallbackCount ?? 0;
       const failed = data?.failed ?? 0;
-      const successMessage = [
+      const successMessage = data?.partial && data.message ? data.message : [
         `Classified ${classified} emails: ${tradeEmails} trade emails and ${otherEmails} other emails.`,
         fallbackCount > 0 ? `${fallbackCount} used safe fallback.` : null,
         failed > 0 ? `${failed} could not be saved.` : null,
@@ -51,7 +53,7 @@ export function ClassifyEmailsButton() {
         router.refresh();
       });
     } catch (classifyError) {
-      const errorMessage = classifyError instanceof Error ? classifyError.message : "Unable to classify emails.";
+      const errorMessage = classifyError instanceof Error ? classifyError.message : "Unable to classify emails. Please try again later.";
       setError(errorMessage);
       setToast({ type: "error", message: errorMessage });
     } finally {

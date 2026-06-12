@@ -4,8 +4,10 @@ import { extractTradeDetails } from "@/lib/ai/extract-trade-details";
 import {
   aiConfigurationErrorBody,
   aiProviderErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 
 type EmailRow = {
@@ -278,7 +280,23 @@ export async function POST(request: NextRequest) {
       });
     }
   } catch (extractionError) {
-    console.error("Unable to extract trade details.", extractionError);
+    if (isAiRateLimitError(extractionError)) {
+      console.warn("ai_extract_rate_limited", {
+        route: "extract-trade-details",
+        retryAfterSeconds: extractionError.retryAfterSeconds,
+      });
+
+      return jsonWithCookies(
+        aiRateLimitErrorBody(extractionError.retryAfterSeconds),
+        { status: 429 },
+        cookieResponse
+      );
+    }
+
+    console.error("ai_extract_failed", {
+      route: "extract-trade-details",
+      message: extractionError instanceof Error ? extractionError.message.slice(0, 120) : "Unknown extraction failure.",
+    });
 
     return jsonWithCookies(
       isAiConfigurationError(extractionError) ? aiConfigurationErrorBody() : aiProviderErrorBody(),

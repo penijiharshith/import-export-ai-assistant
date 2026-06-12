@@ -8,8 +8,10 @@ import {
 import {
   AI_PROVIDER_ERROR_MESSAGE,
   aiConfigurationErrorBody,
+  aiRateLimitErrorBody,
   isAiConfigured,
   isAiConfigurationError,
+  isAiRateLimitError,
 } from "@/lib/ai/groq";
 import type { ExtractedTradeDetails } from "@/lib/ai/extract-trade-details";
 
@@ -231,6 +233,19 @@ export async function POST(request: NextRequest) {
         businessRole,
       });
     } catch (error) {
+      if (isAiRateLimitError(error)) {
+        console.warn("ai_suggest_rate_limited", {
+          route: "suggest-actions",
+          retryAfterSeconds: error.retryAfterSeconds,
+        });
+
+        return jsonWithCookies(
+          aiRateLimitErrorBody(error.retryAfterSeconds),
+          { status: 429 },
+          cookieResponse
+        );
+      }
+
       console.error("ai_suggest_action_failed", {
         route: "suggest-actions",
         message: error instanceof Error ? error.message.slice(0, 120) : "Unknown AI suggestion failure.",
